@@ -196,11 +196,18 @@ function prepare_source_code() {
             error_exit "Failed to enable fips mode"
     fi
 
-    if [[ "$CONFIDENTIAL_COMPUTE_ENABLED" == "yes" ]]; then
+    # links must be relative
+    if [[ -e /tmp/kata-opa/custom.rego ]] ; then
+        echo "Setting custom agent policy according to file found"
+        cp /tmp/kata-opa/custom.rego "${podvm_dir}"/files/etc/kata-opa/custom.rego
+        ln -sf custom.rego  "${podvm_dir}"/files/etc/kata-opa/default-policy.rego
+    elif [[ "$CONFIDENTIAL_COMPUTE_ENABLED" == "yes" ]] ; then
+        echo "Setting custom agent policy to CoCo's recommended policy"
         sed 's/default SetPolicyRequest := true/default SetPolicyRequest := false/; s/default ExecProcessRequest := true/default ExecProcessRequest := false/' \
             "${podvm_dir}"/files/etc/kata-opa/default-policy.rego > "${podvm_dir}"/files/etc/kata-opa/coco-default-policy.rego
-        ln -sf "${podvm_dir}"/files/etc/kata-opa/coco-default-policy.rego  "${podvm_dir}"/files/etc/kata-opa/default-policy.rego
+        ln -sf coco-default-policy.rego  "${podvm_dir}"/files/etc/kata-opa/default-policy.rego
     fi
+    echo "\nCurrent Agent Policy:\n" && cat "${podvm_dir}"/files/etc/kata-opa/default-policy.rego
 }
 
 # Download and extract pause container image
