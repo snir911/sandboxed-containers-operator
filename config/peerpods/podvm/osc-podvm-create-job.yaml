@@ -55,10 +55,16 @@ spec:
               mountPath: /payload
             - name: regauth
               mountPath: /tmp/regauth
+            - name: agent-policy
+              mountPath: /tmp/kata-opa
       volumes:
         - name: payload
           emptyDir: {}
         - name: regauth
           secret:
             secretName: auth-json-secret
+        - name: agent-policy
+          configMap:
+            name: agent-policy
+            optional: true
       restartPolicy: Never

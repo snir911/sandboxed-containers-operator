@@ -197,13 +197,18 @@ function prepare_source_code() {
     fi
 
     # links must be relative
-    if [[ "$CONFIDENTIAL_COMPUTE_ENABLED" == "yes" ]]; then
+    if [[ -f /tmp/kata-opa/custom.rego ]] ; then
+        echo "Setting custom agent policy according to file found"
+        cp /tmp/kata-opa/custom.rego "${podvm_dir}"/files/etc/kata-opa/custom.rego
+        ln -sf custom.rego  "${podvm_dir}"/files/etc/kata-opa/default-policy.rego
+    elif [[ "$CONFIDENTIAL_COMPUTE_ENABLED" == "yes" ]]; then
+        echo "Setting custom agent policy to CoCo's recommended policy"
         sed 's/default ReadStreamRequest := true/default ReadStreamRequest := false/;
             s/default ExecProcessRequest := true/default ExecProcessRequest := false/' \
             "${podvm_dir}"/files/etc/kata-opa/default-policy.rego > "${podvm_dir}"/files/etc/kata-opa/coco-default-policy.rego
         ln -sf coco-default-policy.rego "${podvm_dir}"/files/etc/kata-opa/default-policy.rego
     fi
-    printf "\n~~~ Current Agent Policy ~~~\n$(cat "${podvm_dir}"/files/etc/kata-opa/default-policy.rego)\n\n"
+    echo "~~~ Current Agent Policy ~~~" && cat "${podvm_dir}"/files/etc/kata-opa/default-policy.rego
 }
 
 # Download and extract pause container image
