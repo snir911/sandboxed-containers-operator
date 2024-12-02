@@ -9,7 +9,7 @@ RUN umoci unpack --rootless --image pause:k8s /pause
 COPY --from=pause-bin /pause /pause/rootfs/pause
 
 # Get payload
-FROM registry.redhat.io/openshift-sandboxed-containers/osc-podvm-payload-rhel9:1.9.0 as payload
+FROM registry-proxy.engineering.redhat.com/rh-osbs/openshift-sandboxed-containers-podvm-payload:1.9.0-4 as payload
 
 # Build bootc rhel podvm
 FROM registry.redhat.io/rhel9/rhel-bootc:9.5-1738698007 as podvm-bootc
