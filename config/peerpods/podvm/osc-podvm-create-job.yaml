@@ -36,6 +36,15 @@ spec:
           # sources for cloud-api-adaptor under /src/cloud-api-adaptor
 
           securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true
+            runAsNonRoot: false
+            seLinuxOptions:
+              type: unconfined_t
+            capabilities:
+             allow:
+               - ALL
+
             runAsUser: 0 # needed for container mode dnf access
           envFrom:
             - secretRef:
@@ -61,6 +70,9 @@ spec:
             - name: ssh-key-secret
               mountPath: "/root/.ssh/"
               readOnly: true
+            - name: store-volume
+              mountPath: /store
+
       volumes:
         - name: payload
           emptyDir: {}
@@ -75,4 +87,6 @@ spec:
               path: "id_rsa"
             defaultMode: 0400
             optional: true
+        - name: store-volume
+          emptyDir: {}
       restartPolicy: Never

@@ -31,6 +31,7 @@ function install_rpm_packages() {
         "skopeo"
         "jq"
         "qemu-img" # for handling pre-built images. Note that this rpm requires subscription
+        "podman" # TODO: can we drop podman/skopeo?
     )
 
     # Create a new array to store rpm packages that are not installed
@@ -455,6 +456,70 @@ function validate_podvm_image() {
     fi
 
     echo "Checksum of the PodVM image: $(sha256sum "$image_path")"
+}
+
+# Function to download and extract a container image.
+# Accepts six arguments:
+
+# Function to convert qcow2 image to vhd image
+# Input:
+# 1. container_image_repo_url: The registry URL of the source container image.
+# 2. image_tag: The tag of the source container image.
+# 3. auth_json_file (optional): Path to the registry secret file to use for downloading the image.
+# Output: qcow2 image at output/qcow2/disk.qcow2
+function bootc_to_qcow2() {
+    container_image_repo_url="${1}"
+    image_tag="${2}"
+    auth_json_file="${3}"
+
+# some VM customizations , TODO: allow custom config
+    cat << EOF >> ./config.toml
+[[customizations.user]]
+name = "peerpod"
+password = "peerpod"
+key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDXIqsl+VbNg9MZwGYyCXIWhF/9Q6kP6o6ZJ6fPnJ6HwKyMjQv3QRPdXUBzjX0afEDVx12x/WUjUQEO/P4b0cYJBbg5nE0DyvfmdNFBpO1I6f1P0P4QKfhEH4XV9COvtUUJnoxctxp8eG2CuATI0+yJk"
+groups = ["wheel", "root"]
+
+[[customizations.filesystem]]
+mountpoint = "/"
+minsize = "5 GiB"
+
+[[customizations.filesystem]]
+mountpoint = "/var/kata-containers"
+minsize = "15 GiB"
+
+[customizations.kernel]
+append = "selinux=0 enforcing=0 audit=0"
+EOF
+
+    # login for local registry pulling # TODO: can we use token instead?
+    if [[ "${PODVM_IMAGE_URL}" == *"image-registry.openshift-image-registry.svc"* ]]; then
+        mkdir  /etc/containers/certs.d/image-registry.openshift-image-registry.svc:5000
+        ln -s /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt  /etc/containers/certs.d/image-registry.openshift-image-registry.svc:5000/service-ca.crt
+        podman login -u kubeadmin -p $(cat /var/run/secrets/kubernetes.io/serviceaccount/token) image-registry.openshift-image-registry.svc:5000
+    fi
+
+    # pull first to authenticate properly, if REGISTRY_AUTH_FILE is empty, it's ignored
+    REGISTRY_AUTH_FILE=${auth_json_file} podman pull "${container_image_repo_url}:${image_tag}" || error_exit "Failed to pull bootc image"
+
+    # execute bootc-image-builder
+    # TODO: check if we can avoid this to drop the /store volumeMount
+    # TODO: use fixed version
+    # REGISTRY_AUTH_FILE is needed to access bib image
+    mkdir output
+    REGISTRY_AUTH_FILE=${CLUSTER_PULL_SECRET_AUTH_FILE} podman run \
+        -it \
+        --privileged \
+        --security-opt label=type:unconfined_t \
+        -v $(pwd)/config.toml:/config.toml:ro \
+        -v $(pwd)/output:/output \
+        -v /store:/store \
+        -v /var/lib/containers/storage:/var/lib/containers/storage \
+        registry.redhat.io/rhel9/bootc-image-builder:latest \
+        --type qcow2 \
+        --rootfs ext4 \
+        --local \
+        "${container_image_repo_url}:${image_tag}" || error_exit "Failed to convert bootc image"
 }
 
 # Function to convert qcow2 image to vhd image
