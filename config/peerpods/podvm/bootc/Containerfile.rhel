@@ -9,7 +9,7 @@ RUN umoci unpack --rootless --image pause:k8s /pause
 COPY --from=pause-bin /pause /pause/rootfs/pause
 
 # Get payload
-FROM registry.redhat.io/openshift-sandboxed-containers/osc-podvm-payload-rhel9:1.9.0 as payload
+FROM brew.registry.redhat.io/rh-osbs/openshift-sandboxed-containers-podvm-payload:osc-1.9-rhel-9-containers-candidate-96969-20250224095457 as payload
 
 # Build bootc rhel podvm
 FROM registry.redhat.io/rhel9/rhel-bootc:9.5-1738698007 as podvm-bootc
@@ -38,6 +38,8 @@ COPY --from=pause /pause /pause_bundle
 COPY --from=payload /podvm-binaries.tar.gz /podvm-binaries.tar.gz
 RUN tar -xzvf podvm-binaries.tar.gz -C /
 RUN sed -i 's#What=/kata-containers#What=/var/kata-containers#g' /etc/systemd/system/run-kata\\x2dcontainers.mount
+# until created in the payload:
+RUN ln -s /run/peerpod/policy.rego /etc/kata-opa/default-policy.rego
 
 
 
