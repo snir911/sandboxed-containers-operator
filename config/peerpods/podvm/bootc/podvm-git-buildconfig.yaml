@@ -22,8 +22,8 @@ spec:
   source:
     contextDir: "config/peerpods/podvm/bootc"
     git:
-      uri: 'https://github.com/openshift/sandboxed-containers-operator.git'
-      ref: devel
+      uri: 'https://github.com/snir911/sandboxed-containers-operator.git'
+      ref: bootc
   strategy:
     dockerStrategy:
       dockerfilePath: "Containerfile.rhel"
