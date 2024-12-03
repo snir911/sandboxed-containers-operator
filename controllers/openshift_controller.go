@@ -32,8 +32,9 @@ import (
 
 	ignTypes "github.com/coreos/ignition/v2/config/v3_2/types"
 	"github.com/go-logr/logr"
+	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
 	secv1 "github.com/openshift/api/security/v1"
-	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
+	"github.com/openshift/machine-config-operator/pkg/apihelpers"
 	mcfgconsts "github.com/openshift/machine-config-operator/pkg/daemon/constants"
 	kataconfigurationv1 "github.com/openshift/sandboxed-containers-operator/api/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -802,7 +803,7 @@ func (r *KataConfigOpenShiftReconciler) isMcpUpdating(mcpName string) bool {
 		r.Log.Info("Getting MachineConfigPool failed ", "machinePool", mcpName, "err", err)
 		return false
 	}
-	return mcfgv1.IsMachineConfigPoolConditionTrue(mcp.Status.Conditions, mcfgv1.MachineConfigPoolUpdating)
+	return apihelpers.IsMachineConfigPoolConditionTrue(mcp.Status.Conditions, mcfgv1.MachineConfigPoolUpdating)
 }
 
 func (r *KataConfigOpenShiftReconciler) processKataConfigDeleteRequest() (ctrl.Result, error) {
@@ -1382,8 +1383,8 @@ func logMcpChange(log logr.Logger, statusOld, statusNew mcfgv1.MachineConfigPool
 	if !reflect.DeepEqual(statusOld.Conditions, statusNew.Conditions) {
 
 		for _, condType := range []mcfgv1.MachineConfigPoolConditionType{"Updating", "Updated"} {
-			condOld := mcfgv1.GetMachineConfigPoolCondition(statusOld, condType)
-			condNew := mcfgv1.GetMachineConfigPoolCondition(statusNew, condType)
+			condOld := apihelpers.GetMachineConfigPoolCondition(statusOld, condType)
+			condNew := apihelpers.GetMachineConfigPoolCondition(statusNew, condType)
 			condStatusOld := missingMcpStatusConditionStr
 			if condOld != nil {
 				condStatusOld = string(condOld.Status)
@@ -1404,7 +1405,7 @@ type McpEventHandler struct {
 	reconciler *KataConfigOpenShiftReconciler
 }
 
-func (eh *McpEventHandler) Create(ctx context.Context, event event.CreateEvent, queue workqueue.RateLimitingInterface) {
+func (eh *McpEventHandler) Create(ctx context.Context, event event.CreateEvent, queue workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	mcp := event.Object
 
 	if !isMcpRelevant(mcp) {
@@ -1418,7 +1419,7 @@ func (eh *McpEventHandler) Create(ctx context.Context, event event.CreateEvent, 
 	log.Info("MCP created")
 }
 
-func (eh *McpEventHandler) Update(ctx context.Context, event event.UpdateEvent, queue workqueue.RateLimitingInterface) {
+func (eh *McpEventHandler) Update(ctx context.Context, event event.UpdateEvent, queue workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	mcpOld := event.ObjectOld
 	mcpNew := event.ObjectNew
 
@@ -1447,8 +1448,8 @@ func (eh *McpEventHandler) Update(ctx context.Context, event event.UpdateEvent, 
 	if !reflect.DeepEqual(statusOld.Conditions, statusNew.Conditions) {
 
 		for _, condType := range []mcfgv1.MachineConfigPoolConditionType{"Updating", "Updated"} {
-			condOld := mcfgv1.GetMachineConfigPoolCondition(statusOld, condType)
-			condNew := mcfgv1.GetMachineConfigPoolCondition(statusNew, condType)
+			condOld := apihelpers.GetMachineConfigPoolCondition(statusOld, condType)
+			condNew := apihelpers.GetMachineConfigPoolCondition(statusNew, condType)
 			condStatusOld := missingMcpStatusConditionStr
 			if condOld != nil {
 				condStatusOld = string(condOld.Status)
@@ -1473,7 +1474,7 @@ func (eh *McpEventHandler) Update(ctx context.Context, event event.UpdateEvent, 
 	}
 }
 
-func (eh *McpEventHandler) Delete(ctx context.Context, event event.DeleteEvent, queue workqueue.RateLimitingInterface) {
+func (eh *McpEventHandler) Delete(ctx context.Context, event event.DeleteEvent, queue workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	mcp := event.Object
 
 	if !isMcpRelevant(mcp) {
@@ -1486,7 +1487,7 @@ func (eh *McpEventHandler) Delete(ctx context.Context, event event.DeleteEvent, 
 	log.Info("MCP deleted")
 }
 
-func (eh *McpEventHandler) Generic(ctx context.Context, event event.GenericEvent, queue workqueue.RateLimitingInterface) {
+func (eh *McpEventHandler) Generic(ctx context.Context, event event.GenericEvent, queue workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	mcp := event.Object
 
 	if !isMcpRelevant(mcp) {
@@ -1556,7 +1557,7 @@ type NodeEventHandler struct {
 	reconciler *KataConfigOpenShiftReconciler
 }
 
-func (eh *NodeEventHandler) Create(ctx context.Context, event event.CreateEvent, queue workqueue.RateLimitingInterface) {
+func (eh *NodeEventHandler) Create(ctx context.Context, event event.CreateEvent, queue workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	node := event.Object
 
 	log := eh.reconciler.Log.WithName("NodeCreate").WithValues("node name", node.GetName())
@@ -1578,7 +1579,7 @@ func (eh *NodeEventHandler) Create(ctx context.Context, event event.CreateEvent,
 	queue.Add(eh.reconciler.makeReconcileRequest())
 }
 
-func (eh *NodeEventHandler) Update(ctx context.Context, event event.UpdateEvent, queue workqueue.RateLimitingInterface) {
+func (eh *NodeEventHandler) Update(ctx context.Context, event event.UpdateEvent, queue workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// This function assumes that a node cannot change its role from master to
 	// worker or vice-versa.
 	nodeOld := event.ObjectOld
@@ -1628,10 +1629,10 @@ func (eh *NodeEventHandler) Update(ctx context.Context, event event.UpdateEvent,
 	}
 }
 
-func (eh *NodeEventHandler) Delete(ctx context.Context, event event.DeleteEvent, queue workqueue.RateLimitingInterface) {
+func (eh *NodeEventHandler) Delete(ctx context.Context, event event.DeleteEvent, queue workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 }
 
-func (eh *NodeEventHandler) Generic(ctx context.Context, event event.GenericEvent, queue workqueue.RateLimitingInterface) {
+func (eh *NodeEventHandler) Generic(ctx context.Context, event event.GenericEvent, queue workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 }
 
 func (r *KataConfigOpenShiftReconciler) SetupWithManager(mgr ctrl.Manager) error {
