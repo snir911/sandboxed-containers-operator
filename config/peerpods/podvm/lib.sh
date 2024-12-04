@@ -473,24 +473,9 @@ function bootc_to_qcow2() {
     auth_json_file="${3}"
 
 # some VM customizations , TODO: allow custom config
-    cat << EOF >> ./config.toml
-[[customizations.user]]
-name = "peerpod"
-password = "peerpod"
-key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDXIqsl+VbNg9MZwGYyCXIWhF/9Q6kP6o6ZJ6fPnJ6HwKyMjQv3QRPdXUBzjX0afEDVx12x/WUjUQEO/P4b0cYJBbg5nE0DyvfmdNFBpO1I6f1P0P4QKfhEH4XV9COvtUUJnoxctxp8eG2CuATI0+yJk"
-groups = ["wheel", "root"]
-
-[[customizations.filesystem]]
-mountpoint = "/"
-minsize = "5 GiB"
-
-[[customizations.filesystem]]
-mountpoint = "/var/kata-containers"
-minsize = "15 GiB"
-
-[customizations.kernel]
-append = "selinux=0 enforcing=0 audit=0"
-EOF
+    echo "${BOOTC_BUILD_CONFIG}" >> ./config.toml
+    echo "config.toml:"
+    cat ./config.toml
 
     # login for local registry pulling # TODO: can we use token instead?
     if [[ "${PODVM_IMAGE_URL}" == *"image-registry.openshift-image-registry.svc"* ]]; then

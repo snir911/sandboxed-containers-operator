@@ -1,0 +1,16 @@
+[[customizations.user]]
+name = "peerpod"
+password = "peerpod"
+#key = "ssh-rsa AAAA..."
+groups = ["wheel", "root"]
+
+[[customizations.filesystem]]
+mountpoint = "/"
+minsize = "5 GiB"
+
+[[customizations.filesystem]]
+mountpoint = "/var/kata-containers"
+minsize = "15 GiB"
+
+[customizations.kernel]
+append = "selinux=0 enforcing=0 audit=0"

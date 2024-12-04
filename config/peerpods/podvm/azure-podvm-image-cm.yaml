@@ -59,3 +59,22 @@ data:
 
   # Custom Agent Policy
   #AGENT_POLICY: "" # set to base64 encoded agent policy
+
+  # Custom bootc build configuration: https://osbuild.org/docs/bootc/#-build-config
+  BOOTC_BUILD_CONFIG: |
+   [[customizations.user]]
+   name = "peerpod"
+   password = "peerpod"
+   #key = "ssh-rsa AAAA..."
+   groups = ["wheel", "root"]
+   
+   [[customizations.filesystem]]
+   mountpoint = "/"
+   minsize = "5 GiB"
+   
+   [[customizations.filesystem]]
+   mountpoint = "/var/kata-containers"
+   minsize = "15 GiB"
+   
+   [customizations.kernel]
+   append = "selinux=0 enforcing=0 audit=0"
