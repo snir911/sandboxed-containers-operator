@@ -1,0 +1,81 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: podvm-bootc
+  namespace: openshift-sandboxed-containers-operator
+spec:
+  lookupPolicy:
+    local: false
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: bootc-image-build
+  namespace: openshift-sandboxed-containers-operator
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: podvm-bootc:latest
+  source:
+    dockerfile: |-
+      # Get & bundle pause image
+      FROM fedora:latest as pause
+      WORKDIR /tmp/
+      RUN dnf install -y skopeo
+      RUN curl -L https://github.com/opencontainers/umoci/releases/download/v0.4.7/umoci.amd64 -o /usr/bin/umoci && chmod +x /usr/bin/umoci
+      RUN skopeo copy docker://quay.io/bpradipt/okd-pause oci:pause:okd
+      RUN umoci unpack --rootless --image pause:okd /pause
+
+      # Build bootc rhel podvm
+      FROM registry.redhat.io/rhel9/rhel-bootc:9.4
+
+      # Cloud-init is needed for libvirt provider
+      #RUN dnf -y install cloud-init && \
+      #    ln -s ../cloud-init.target /usr/lib/systemd/system/default.target.wants && \
+      #    rm -rf /var/{cache,log} /var/lib/{dnf,rhsm}
+
+      # Install after burn for Azure
+      RUN dnf config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/ && dnf install -y --nogpgcheck afterburn && dnf clean all
+      RUN echo "[Unit]" >> /etc/systemd/system/afterburn-checkin.service
+      RUN echo "ConditionKernelCommandLine=" >> /etc/systemd/system/afterburn-checkin.service 
+      RUN echo "[Service]" >> /etc/systemd/system/afterburn-checkin.service
+      RUN echo "ExecStart=" >> /etc/systemd/system/afterburn-checkin.service
+      RUN echo "ExecStart=-/usr/bin/afterburn --provider=azure --check-in" >> /etc/systemd/system/afterburn-checkin.service
+      RUN ln -s ../afterburn-checkin.service /etc/systemd/system/multi-user.target.wants/afterburn-checkin.service
+
+
+      # Copy pause bundle
+      COPY --from=pause /pause /pause_bundle
+
+      # Extact podvm binaries
+      COPY ./podvm-binaries.tar.gz /
+      RUN tar -xzvf ./podvm-binaries.tar.gz -C /
+      RUN sed -i 's#What=/kata-containers#What=/var/kata-containers#g' /etc/systemd/system/run-kata\\x2dcontainers.mount
+
+      # misc configs
+      RUN mkdir -p /usr/lib/bootc/install
+      
+      RUN echo "%wheel        ALL=(ALL)       NOPASSWD: ALL" >> /etc/sudoers.d/wheel-nopasswd
+
+      RUN echo '[install.filesystem.root]' >> /usr/lib/bootc/install/00-kargs.toml
+      RUN echo 'type = "ext4"' >> /usr/lib/bootc/install/00-kargs.toml
+      RUN echo '[install]' >> /usr/lib/bootc/install/00-kargs.toml
+      RUN echo 'kargs = [ "console=ttyS0", "selinux=0", "enforcing=0", "audit=0"]' >> /usr/lib/bootc/install/00-kargs.toml
+      RUN echo 'match-architectures = ["x86_64"]' >> /usr/lib/bootc/install/00-kargs.toml
+    images:
+    - from: 
+        kind: DockerImage
+        name: registry.redhat.io/openshift-sandboxed-containers/osc-podvm-payload-rhel9:1.8.0-6
+      paths: 
+      - sourcePath: /podvm-binaries.tar.gz
+        destinationDir: "."
+  strategy:
+    dockerStrategy: {}
+      #    dockerStrategy:
+      #      from:
+      #        kind: "ImageStreamTag"
+      #        name: "rhel-bootc:latest"
+    type: Docker
+  triggers:
+    - type: ConfigChange

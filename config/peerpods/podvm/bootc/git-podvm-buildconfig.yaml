@@ -1,0 +1,30 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: podvm-bootc
+  namespace: openshift-sandboxed-containers-operator
+spec:
+  lookupPolicy:
+    local: false
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: bootc-image-build
+  namespace: openshift-sandboxed-containers-operator
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: podvm-bootc:latest
+  source:
+    contextDir: "config/peerpods/podvm/bootc"
+    git:
+      uri: 'https://github.com/snir911/sandboxed-containers-operator.git'
+      ref: bootc3
+  strategy:
+    dockerStrategy:
+      dockerfilePath: "Containerfile.rhel"
+    type: Docker
+  triggers:
+    - type: ConfigChange
