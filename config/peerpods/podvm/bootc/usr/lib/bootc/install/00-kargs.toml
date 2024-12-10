@@ -1,5 +1,5 @@
 [install.filesystem.root]
-type = "ext4"
+type = "xfs"
 [install]
-kargs = [ "console=ttyS0", "selinux=0", "enforcing=0", "audit=0"]
+kargs = ["console=ttyS0"]
 match-architectures = ["x86_64"]
