@@ -51,7 +51,7 @@ podman run \
        -v /var/lib/containers/storage:/var/lib/containers/storage \
        registry.redhat.io/rhel9/bootc-image-builder:latest \
        --type qcow2 \
-       --rootfs ext4 \
+       --rootfs xfs \
        --local \
        "${IMG}"
 ```
