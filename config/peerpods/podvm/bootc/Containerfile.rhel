@@ -1,10 +1,18 @@
-# Get & bundle pause image
-FROM quay.io/skopeo/stable:latest AS pause
+# pause command builder
+FROM registry.redhat.io/rhel8/go-toolset:1.22.7-5.1733303300 as pod_builder
+ADD --chmod=644 https://raw.githubusercontent.com/openshift/images/5cc2177e050fb1c13bf594c91f0ca3f06e32843d/pod/pod.go .
+RUN CGO_ENABLED=0 GO111MODULE=off go build -installsuffix=cgo -o ./pod ./pod.go
 
-# TODO: COPY authfile & use quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:7f3cb6f9d265291b47a7491c2ba4f4dd0752a18b661eee40584f9a5dbcbe13bb
-RUN skopeo copy docker://quay.io/bpradipt/okd-pause oci:pause:okd && \
-    curl -L https://github.com/opencontainers/umoci/releases/download/v0.4.7/umoci.amd64 -o /usr/bin/umoci && chmod +x /usr/bin/umoci && \
-    umoci unpack --rootless --image pause:okd /pause
+# build pause # TODO: remove once agent support dynamic pause command or switching to OCP's official pause
+FROM registry.redhat.io/ubi9/ubi-minimal:9.5 as pause
+RUN curl -L https://github.com/opencontainers/umoci/releases/download/v0.4.7/umoci.amd64 -o /usr/bin/umoci && chmod +x /usr/bin/umoci
+RUN umoci init --layout pause
+RUN umoci new --image pause:osc
+RUN umoci config --image pause:osc --config.entrypoint=/usr/bin/pod --author="OSC"
+RUN umoci unpack --rootless --image pause:osc /pause
+COPY --from=pod_builder /opt/app-root/src/pod /pause/rootfs/usr/bin/
+
+
 
 # Get payload
 FROM registry.redhat.io/openshift-sandboxed-containers/osc-podvm-payload-rhel9:1.8.0-6 as payload
