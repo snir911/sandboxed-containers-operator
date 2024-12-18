@@ -1,0 +1,101 @@
+## GOLANG ##
+FROM quay.io/confidential-containers/golang-fedora:1.22.7-40 as  go_builder
+
+RUN dnf install -y git
+
+ARG ARCH
+ENV ARCH=${ARCH}
+
+RUN mkdir -p /artifacts/usr/local/bin
+WORKDIR /sources
+
+#ADD https://github.com/confidential-containers/cloud-api-adaptor.git#v0.9.0 /sources/
+RUN git clone https://github.com/confidential-containers/cloud-api-adaptor.git && cd cloud-api-adaptor && git checkout v0.9.0 && cd -
+
+#RUN echo "export GOFLAGS=-tags=strictfipsruntime,aws,azure,ibmcloud,vsphere,libvirt" >> $REMOTE_SOURCES_DIR/cloud-api-adaptor/cachito.env
+
+# binary: agent-protocol-forwarder, proccess-user-data (golang)
+WORKDIR /sources/cloud-api-adaptor/src/cloud-api-adaptor
+RUN CGO_ENABLED=1 GOOS=linux go build \
+#-ldflags=-X=github.com/confidential-containers/cloud-api-adaptor/cmd.VERSION=$(git rev-parse --abbrev-ref HEAD) \
+#-ldflags=-X=github.com/confidential-containers/cloud-api-adaptor/cmd.COMMIT=$(git rev-parse --short HEAD) \
+-o /artifacts/usr/local/bin/agent-protocol-forwarder cmd/agent-protocol-forwarder/main.go
+
+RUN CGO_ENABLED=1 GOOS=linux go build \
+#-ldflags=-X=github.com/confidential-containers/cloud-api-adaptor/cmd.VERSION=$(git rev-parse --abbrev-ref HEAD) \
+-o /artifacts/usr/local/bin/process-user-data cmd/process-user-data/*.go
+
+# config files and scripts
+RUN cp -r /sources/cloud-api-adaptor/src/cloud-api-adaptor/podvm/files/* /artifacts
+
+## RUST ##
+FROM fedora:40 as rust_builder
+
+RUN dnf -y update && \
+    dnf -y install git rust-1.77.0-1.fc40 cargo-1.77.0-1.fc40 perl-File-Compare perl-FindBin cmake gcc-c++ perl protobuf-compiler clang-devel device-mapper-devel tpm2-tss-devel && \
+    dnf clean all
+
+RUN mkdir -p /artifacts/usr/local/bin
+WORKDIR /sources
+
+#ADD https://github.com/kata-containers/kata-containers.git#3.7.0 /sources/
+RUN git clone https://github.com/kata-containers/kata-containers.git && cd kata-containers && git checkout 3.7.0 && cd -
+
+#ADD https://github.com/confidential-containers/guest-components.git#v0.9.0 /sources/
+RUN git clone https://github.com/confidential-containers/guest-components.git && cd guest-components && git checkout v0.9.0 && cd -
+
+# binary: kata-agent (rust)
+WORKDIR /sources/kata-containers/src/agent
+RUN make src/version.rs
+RUN cargo build --verbose --release --features "guest-pull agent-policy"
+RUN cp /sources/kata-containers/src/agent/target/release/kata-agent /artifacts/usr/local/bin
+
+# binary: attestation-agent (rust)
+RUN rm -Rf ~/.cargo
+WORKDIR /sources/guest-components/attestation-agent/attestation-agent
+
+RUN ARCH=$(uname -m) && \
+  if [ "$ARCH" = "s390x" ]; then \
+        cargo build --verbose --release --no-default-features --features "coco_as,kbs,se-attester,bin,ttrpc,openssl"; \
+  else \
+        cargo build --verbose --release --no-default-features --features "coco_as,kbs,az-snp-vtpm-attester,az-tdx-vtpm-attester,bin,ttrpc,openssl"; \
+  fi
+RUN find /sources/guest-components -iname ttrpc-aa
+RUN cp /sources/guest-components/target/release/ttrpc-aa /artifacts/usr/local/bin/attestation-agent
+
+# binary: confidential-data-hub (rust)
+WORKDIR /sources/guest-components/confidential-data-hub/hub
+RUN cargo build --verbose --release --no-default-features --features "kbs,bin,ttrpc"
+RUN find /sources/guest-components -iname ttrpc-cdh
+RUN cp "/sources/guest-components/target/release/ttrpc-cdh" /artifacts/usr/local/bin/confidential-data-hub
+
+# binary: api-server-rest (rust)
+WORKDIR /sources/guest-components/api-server-rest
+RUN cargo build --verbose --release
+RUN find /sources/guest-components -iname api-server-rest
+RUN cp "/sources/guest-components/target/release/api-server-rest" /artifacts/usr/local/bin
+
+## FINAL IMAGE ##
+FROM scratch as payload
+
+#FROM registry.rdhat.io/ubi9/ubi-minimal:latest
+#LABEL name="openshift-sandboxed-containers-podvm-payload" \
+#version="${CI_VERSION}" \
+#com.redhat.component="osc-podvm-payload-container" \
+#summary="Container image containing podvm artefacts that is required for creating Pod VM images" \
+#maintainer="redhat@redhat.com" \
+#description="Container image containing podvm artefacts that is required for creating Pod VM images" \
+#io.k8s.display-name="openshift-sandboxed-containers-podvm-payload"
+
+#COPY --from=rust_builder $REMOTE_SOURCES_DIR /
+
+COPY --from=go_builder /artifacts/usr /usr
+COPY --from=go_builder /artifacts/etc /etc
+COPY --from=rust_builder /artifacts/usr /usr
+
+#RUN microdnf install -y tar gzip && microdnf clean all
+
+# Create the final tarball and remove /artifacts to save space
+#RUN tar czvf /podvm-binaries.tar.gz -C /artifacts usr/ etc/ && \
+#    rm -rf /artifacts
+
