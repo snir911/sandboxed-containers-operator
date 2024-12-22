@@ -3,6 +3,9 @@
 
 [[ "$DEBUG" == "true" ]] && set -x
 
+# Bootc Defaults
+BIB_IMAGE=${BIB_IMAGE:-registry.redhat.io/rhel9/bootc-image-builder:9.5}
+
 # Defaults for pause image
 # This pause image is multi-arch
 PAUSE_IMAGE_REPO_DEFAULT="quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256"
@@ -458,53 +461,73 @@ function validate_podvm_image() {
     echo "Checksum of the PodVM image: $(sha256sum "$image_path")"
 }
 
-# Function to download and extract a container image.
-# Accepts six arguments:
-
-# Function to convert qcow2 image to vhd image
+# Function to convert local bootc container image to cloud image
 # Input:
 # 1. container_image_repo_url: The registry URL of the source container image.
 # 2. image_tag: The tag of the source container image.
-# 3. auth_json_file (optional): Path to the registry secret file to use for downloading the image.
+# 3. auth_json_file (can be empty): Path to the registry secret file to use for downloading the image.
+# 4. run_args: arguments for the podman run command that runs bootc image builder
+# 5. bib_args: arguments for bootc image builder itself
+# Output: based on input, either, qcow2 image at output/qcow2/disk.qcow2 or ami
+# see: https://github.com/osbuild/bootc-image-builder
+function bootc_image_builder_conversion() {
+    container_image_repo_url="${1}"
+    image_tag="${2}"
+    auth_json_file="${3}"
+    run_args="${4}"
+    bib_args="${5}"
+
+    # some VM customizations
+    echo "${BOOTC_BUILD_CONFIG}" >> ./config.toml
+    echo "config.toml:"
+    cat ./config.toml
+
+    # login for local registry pulling # TODO: can we use token instead?
+    if [[ "${container_image_repo_url}" == *"image-registry.openshift-image-registry.svc"* ]]; then
+        echo "login to local registry"
+        mkdir  /etc/containers/certs.d/image-registry.openshift-image-registry.svc:5000
+        ln -s /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt  /etc/containers/certs.d/image-registry.openshift-image-registry.svc:5000/service-ca.crt
+        podman login -u kubeadmin -p $(cat /var/run/secrets/kubernetes.io/serviceaccount/token) image-registry.openshift-image-registry.svc:5000
+        podman pull "${container_image_repo_url}:${image_tag}" || error_exit "Failed to pull local bootc image"
+    else
+        # pull first to authenticate properly, if REGISTRY_AUTH_FILE is empty, it's ignored
+        REGISTRY_AUTH_FILE=${auth_json_file} podman pull "${container_image_repo_url}:${image_tag}" || error_exit "Failed to pull bootc image"
+    fi
+
+
+    # execute bootc-image-builder
+    # TODO: check if we can avoid this to drop the /store volumeMount
+    # REGISTRY_AUTH_FILE is needed to access bib image
+    REGISTRY_AUTH_FILE=${CLUSTER_PULL_SECRET_AUTH_FILE} podman run \
+        -it \
+        --privileged \
+        --security-opt label=type:unconfined_t \
+        -v $(pwd)/config.toml:/config.toml:ro \
+        -v /store:/store \
+        -v /var/lib/containers/storage:/var/lib/containers/storage \
+        ${run_args} \
+        ${BIB_IMAGE} \
+        ${bib_args} \
+        --rootfs xfs \
+        --local \
+        ${container_image_repo_url}:${image_tag} || error_exit "Failed to convert bootc image"
+}
+
+# Function to convert bootc container image to qcow2
+# Input:
+# 1. container_image_repo_url: The registry URL of the source container image.
+# 2. image_tag: The tag of the source container image.
+# 3. auth_json_file (can be empty): Path to the registry secret file to use for downloading the image.
 # Output: qcow2 image at output/qcow2/disk.qcow2
 function bootc_to_qcow2() {
     container_image_repo_url="${1}"
     image_tag="${2}"
     auth_json_file="${3}"
 
-# some VM customizations , TODO: allow custom config
-    echo "${BOOTC_BUILD_CONFIG}" >> ./config.toml
-    echo "config.toml:"
-    cat ./config.toml
-
-    # login for local registry pulling # TODO: can we use token instead?
-    if [[ "${PODVM_IMAGE_URL}" == *"image-registry.openshift-image-registry.svc"* ]]; then
-        mkdir  /etc/containers/certs.d/image-registry.openshift-image-registry.svc:5000
-        ln -s /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt  /etc/containers/certs.d/image-registry.openshift-image-registry.svc:5000/service-ca.crt
-        podman login -u kubeadmin -p $(cat /var/run/secrets/kubernetes.io/serviceaccount/token) image-registry.openshift-image-registry.svc:5000
-    fi
-
-    # pull first to authenticate properly, if REGISTRY_AUTH_FILE is empty, it's ignored
-    REGISTRY_AUTH_FILE=${auth_json_file} podman pull "${container_image_repo_url}:${image_tag}" || error_exit "Failed to pull bootc image"
-
-    # execute bootc-image-builder
-    # TODO: check if we can avoid this to drop the /store volumeMount
-    # TODO: use fixed version
-    # REGISTRY_AUTH_FILE is needed to access bib image
     mkdir output
-    REGISTRY_AUTH_FILE=${CLUSTER_PULL_SECRET_AUTH_FILE} podman run \
-        -it \
-        --privileged \
-        --security-opt label=type:unconfined_t \
-        -v $(pwd)/config.toml:/config.toml:ro \
-        -v $(pwd)/output:/output \
-        -v /store:/store \
-        -v /var/lib/containers/storage:/var/lib/containers/storage \
-        registry.redhat.io/rhel9/bootc-image-builder:latest \
-        --type qcow2 \
-        --rootfs xfs \
-        --local \
-        "${container_image_repo_url}:${image_tag}" || error_exit "Failed to convert bootc image"
+    run_args="-v $(pwd)/output:/output"
+    bib_args="--type qcow2"
+    bootc_image_builder_conversion "${container_image_repo_url}" "${image_tag}" "${auth_json_file}" "${run_args}" "${bib_args}"
 }
 
 # Function to convert qcow2 image to vhd image

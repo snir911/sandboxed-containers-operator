@@ -49,6 +49,9 @@ spec:
           envFrom:
             - secretRef:
                 name: peer-pods-secret
+            - secretRef:
+                name: peer-pods-image-creation-secret # must come after peer-pods-secret to override the values
+                optional: true
             - configMapRef:
                 name: peer-pods-cm
                 optional: true

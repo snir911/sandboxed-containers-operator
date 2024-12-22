@@ -52,12 +52,13 @@ podman run \
        registry.redhat.io/rhel9/bootc-image-builder:latest \
        --type qcow2 \
        --rootfs xfs \
-       --local \
+       --local \ # if pulled locally
        "${IMG}"
 ```
 Artifact will be located at  output/qcow2/disk.qcow2
 Upload it to your cloud-provider.
 
+**AWS:** See [Bootc Image Builder Instructions for AMI artifact](https://github.com/osbuild/bootc-image-builder?tab=readme-ov-file#amazon-machine-images-amis)
 
 ### **In-Cluster** Podvm Disk & Image Creation
 
@@ -87,3 +88,15 @@ BOOTC_BUILD_CONFIG: |  # Custom bootc build configuration: https://osbuild.org/d
   minsize = "15 GiB"
 ```
 
+#### AWS specifics
+
+In order to convert image to AMI (Amazon Machine Image) in-cluster you'll need:
+* An existing s3 bucket in the region of your cluster
+* Your cluster's AWS credntials needs to have the following [permissions](https://docs.aws.amazon.com/vm-import/latest/userguide/required-permissions.html#iam-permissions-image)
+* [vmimport service role](https://docs.aws.amazon.com/vm-import/latest/userguide/required-permissions.html#vmimport-role) set
+* The created bucket name needs to be specified in the aws-podvm-image-cm as follows:
+```
+BUCKET_NAME=<existing-bucket-name>
+```
+
+**NOTE:** you may use the [ami-helper.sh](../../../../scripts/ami-helper/ami-helper.sh) script to help and set the above requirements
