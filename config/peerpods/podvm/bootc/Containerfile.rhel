@@ -9,7 +9,7 @@ RUN umoci unpack --rootless --image pause:k8s /pause
 COPY --from=pause-bin /pause /pause/rootfs/pause
 
 # Get payload
-FROM registry.redhat.io/openshift-sandboxed-containers/osc-podvm-payload-rhel9:1.8.0-6 as payload
+FROM registry.redhat.io/openshift-sandboxed-containers/osc-podvm-payload-rhel9:1.9.0 as payload
 
 # Build bootc rhel podvm
 FROM registry.redhat.io/rhel9/rhel-bootc:9.5-1738698007 as podvm-bootc
@@ -41,6 +41,42 @@ COPY --from=pause /pause /pause_bundle
 COPY --from=payload /podvm-binaries.tar.gz /podvm-binaries.tar.gz
 RUN tar -xzvf podvm-binaries.tar.gz -C /
 RUN sed -i 's#What=/kata-containers#What=/var/kata-containers#g' /etc/systemd/system/run-kata\\x2dcontainers.mount
+
+
+
+########## Nvidia podVM target ##########
+FROM podvm-bootc as nvidia-podvm-bootc
+
+# make sure driver matches the base rhel-bootc kernel's
+# https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/precompiled/
+ENV DRIVER_VERSION="550.144.03"
+
+RUN export OS_VERSION_MAJOR=$(grep "^VERSION=" /etc/os-release | cut -d '=' -f 2 | sed 's/"//g' | cut -d '.' -f 1) && \
+    export KERNEL_VERSION=$(rpm -q --qf "%{VERSION}" kernel-core) && \
+    export KERNEL_RELEASE=$(rpm -q --qf "%{RELEASE}" kernel-core | sed 's/\.el.\(_.\)*$//') && \
+    export DRIVER_STREAM=$(echo ${DRIVER_VERSION} | cut -d '.' -f 1) && \
+    dnf config-manager --add-repo=https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo && \
+    dnf config-manager --best --nodocs --setopt=install_weak_deps=False --save && \
+    dnf -y module enable nvidia-driver:${DRIVER_STREAM}/default && \
+    dnf install -y kmod-nvidia-${DRIVER_VERSION}-${KERNEL_VERSION}-${KERNEL_RELEASE} \
+        nvidia-driver-${DRIVER_VERSION} \
+        nvidia-driver-cuda-${DRIVER_VERSION} \
+        nvidia-driver-libs-${DRIVER_VERSION} \
+        nvidia-persistenced-${DRIVER_VERSION} \
+        nvidia-driver-NVML-${DRIVER_VERSION} \
+        nvidia-container-toolkit && \
+    dnf clean all
+
+RUN subscription-manager unregister
+RUN echo "blacklist nouveau" > /etc/modprobe.d/blacklist_nouveau.conf
+RUN sed -i 's/^#no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-runtime/config.toml # TODO: needed with cdi?
+
+ADD nvidia/nvidia-cdi.service /etc/systemd/system/nvidia-cdi.service
+ADD nvidia/generate-nvidia-cdi.sh /usr/local/bin/generate-nvidia-cdi.sh
+RUN ln -s /etc/systemd/system/nvidia-cdi.service /etc/systemd/system/multi-user.target.wants/nvidia-cdi.service
+RUN bootc container lint
+#########################################
+
 
 # a workaround to set podvm-bootc as default target
 FROM podvm-bootc as default-target
