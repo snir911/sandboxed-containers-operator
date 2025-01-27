@@ -66,12 +66,12 @@ RUN export OS_VERSION_MAJOR=$(grep "^VERSION=" /etc/os-release | cut -d '=' -f 2
     dnf clean all
 
 RUN echo "blacklist nouveau" > /etc/modprobe.d/blacklist_nouveau.conf
-# TODO: switch to CDI
-RUN mkdir -p /usr/share/oci/hooks/prestart/ && \
-    printf '#!/bin/bash -x\nsleep 5\n/usr/bin/nvidia-container-toolkit -debug "$@" > /var/log/nvidia-hook.log 2>&1' > /usr/share/oci/hooks/prestart/nvidia-container-toolkit.sh && \
-    chmod 755 /usr/share/oci/hooks/prestart/nvidia-container-toolkit.sh
 RUN sed -i 's/^#no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-runtime/config.toml
 RUN subscription-manager unregister
+
+ADD nvidia/nvidia-cdi.service /etc/systemd/system/nvidia-cdi.service
+ADD nvidia/generate-nvidia-cdi.sh /usr/local/bin/generate-nvidia-cdi.sh
+RUN ln -s /etc/systemd/system/nvidia-cdi.service /etc/systemd/system/multi-user.target.wants/nvidia-cdi.service
 #########################################
 
 
