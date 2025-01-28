@@ -7,7 +7,9 @@ GA_RELEASE=true
 KERNEL_CONFIG_MC_FILE="./96-kata-kernel-config-mc.yaml"
 SKIP_NFD="${SKIP_NFD:-false}"
 TRUSTEE_URL="${TRUSTEE_URL:-"http://kbs-service.trustee-operator-system:8080"}"
-CMD_TIMEOUT="${CMD_TIMEOUT:-900}"
+CMD_TIMEOUT="${CMD_TIMEOUT:-2700}"
+TDX_NODE_LABEL='intel.feature.node.kubernetes.io/tdx: "true"'
+SNP_NODE_LABEL='amd.feature.node.kubernetes.io/snp: "true"'
 
 export PCCS_API_KEY="${PCCS_API_KEY:-}"
 export PCCS_DB_NAME="${PCCS_DB_NAME:-database}"
@@ -56,8 +58,9 @@ function wait_for_daemonset() {
     local interval=5
     local elapsed=0
     local ready=0
+    local total_pods=0
 
-    local total_pods=$(oc get daemonset -n "$namespace" "$daemonset" -o=jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null)
+    total_pods=$(oc get daemonset -n "$namespace" "$daemonset" -o=jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null)
     while [ $elapsed -lt "$timeout" ]; do
         pods_ready=$(oc get daemonset -n "$namespace" "$daemonset" -o=jsonpath='{.status.numberReady}' 2>/dev/null)
         if [ "$total_pods" -eq "$pods_ready" ]; then
@@ -195,14 +198,37 @@ function apply_operator_manifests() {
 }
 
 # Function to check if single node OpenShift
-function is_single_node_ocp() {
-    local node_count
-    node_count=$(oc get nodes --no-headers | wc -l)
-    if [ "$node_count" -eq 1 ]; then
+# or converged OpenShift
+# For both these topologies there is only master MCP
+# worker MCP will have MACHINECOUNT 0
+function is_single_node_or_converged_ocp() {
+    local node_count=0
+    local master_mcp="master"
+    local master_node_count=0
+    local other_node_count=0
+
+    # Find all MCPs
+    mcp_list=$(oc get mcp -o jsonpath='{.items[*].metadata.name}')
+
+    for mcp in $mcp_list; do
+        node_count=$(oc get mcp "$mcp" -o jsonpath='{.status.machineCount}')
+
+        if [ "$mcp" = "$master_mcp" ]; then
+            master_node_count=$node_count
+        else
+            other_node_count=$((other_node_count + node_count))
+        fi
+    done
+
+    # Check conditions and return appropriate exit code
+    if [ "$master_node_count" -gt 0 ] && [ "$other_node_count" -eq 0 ]; then
+        echo "Single node or converged OpenShift cluster detected."
         return 0
     else
+        echo "Regular OpenShift cluster with separate worker node pool"
         return 1
     fi
+
 }
 
 # Function to set additional cluster-wide image pull secret
@@ -288,20 +314,21 @@ function deploy_intel_dcap() {
     oc adm policy add-scc-to-user privileged -z default
     oc project default
 
-    local PCCS_NODE=$(oc get nodes -l 'node-role.kubernetes.io/control-plane=,node-role.kubernetes.io/master=' -o jsonpath='{.items[0].metadata.name}')
+    # PCCS service is deployed on the master node by design.
+    PCCS_NODE=$(oc get nodes -l 'node-role.kubernetes.io/control-plane=,node-role.kubernetes.io/master=' -o jsonpath='{.items[0].metadata.name}')
     export PCCS_NODE
     export CLUSTER_HTTPS_PROXY
-    envsubst < pccs.yaml.in > pccs.yaml
+    envsubst <pccs.yaml.in >pccs.yaml
     oc apply -f pccs.yaml || return 1
     wait_for_deployment pccs intel-dcap || return 1
 
-    local PCCS_URL=$(echo -n "https://pccs-service:8042" | base64 -w 0)
-    local SECURE_CERT=$(echo -n "false" | base64 -w 0)
-    local USER_TOKEN=$(echo -n $PCCS_USER_TOKEN | base64 -w 0)
+    PCCS_URL=$(echo -n "https://pccs-service:8042" | base64 -w 0)
+    SECURE_CERT=$(echo -n "false" | base64 -w 0)
+    USER_TOKEN=$(echo -n "$PCCS_USER_TOKEN" | base64 -w 0)
     export PCCS_URL
     export SECURE_CERT
     export USER_TOKEN
-    envsubst < registration-ds.yaml.in > registration-ds.yaml
+    envsubst <registration-ds.yaml.in >registration-ds.yaml
     oc apply -f registration-ds.yaml || return 1
     wait_for_daemonset intel-dcap-registration-flow intel-dcap || return 1
 
@@ -322,19 +349,30 @@ function create_amd_node_feature_rules() {
     echo "Node Feature Discovery operator | node feature rules successfully created"
 }
 
-# Function to create KataConfig based on TEE type
+# Function to create KataConfig
+# Label is must for regular OpenShift cluster
 function create_kataconfig() {
-    local tee_type=${1}
-    local label='coco: "true"'
+    local input=${1}
+    local label
 
-    case $tee_type in
-    tdx)
-        label='intel.feature.node.kubernetes.io/tdx: "true"'
-        ;;
-    snp)
-        label='amd.feature.node.kubernetes.io/snp: "true"'
-        ;;
-    esac
+    # Check if the label is empty;
+    #
+    if [[ -z "$input" ]]; then
+        if is_single_node_or_converged_ocp; then
+            label='node-role.kubernetes.io/master: ""'
+        else
+            echo "Error: Node label is mandatory for regular OpenShift cluster"
+            return 1
+        fi
+    else
+        # Convert the label from key=value to "key": "value"
+        # Ensure value is quoted to handle boolean
+        key="${input%%=*}"
+        value="${input#*=}"
+        label="$key: \"$value\""
+    fi
+
+    echo "Creating KataConfig object with label: $label"
 
     # Create KataConfig object
     oc apply -f - <<EOF || return 1
@@ -391,7 +429,7 @@ kernel_params=\"$kernel_params\""
     # for worker nodes
     local mc_label="machineconfiguration.openshift.io/role: kata-oc"
 
-    if is_single_node_ocp; then
+    if is_single_node_or_converged_ocp; then
         mc_label="machineconfiguration.openshift.io/role: master"
     fi
 
@@ -445,7 +483,7 @@ function create_runtimeclasses() {
     local label='node-role.kubernetes.io/kata-oc: ""'
     local ext_resources=''
 
-    if is_single_node_ocp; then
+    if is_single_node_or_converged_ocp; then
         label='node-role.kubernetes.io/master: ""'
     fi
 
@@ -479,6 +517,38 @@ EOF
     echo "kata-$tee_type RuntimeClass object successfully created"
 }
 
+# Function to check if there are nodes with specific labels
+# Argument specifies the label to check
+# Returns 0 if there is at least a single node with the specified label
+function is_node_available_with_label() {
+    local label=${1}
+    local timeout=$CMD_TIMEOUT
+    local interval=5
+    local elapsed=0
+
+    # Convert the label to key=value if given as key:value
+    # Remove any quotes from the label
+    # Trim any leading/trailing spaces
+    label=$(echo "$label" | sed 's/\"//g' | sed 's/ //g' | sed 's/:/=/')
+
+    while [ $elapsed -lt $timeout ]; do
+        nodes=$(oc get nodes -l "$label" -o name 2>/dev/null | wc -l)
+
+        if [ "$nodes" -gt 0 ]; then
+            echo "Node with label $label is available"
+            return 0
+        else
+            echo "Node with label $label is NOT available. Waiting..."
+            sleep "$interval"
+            elapsed=$((elapsed + interval))
+        fi
+    done
+
+    echo "Wait time expired. Node with label $label is still NOT available."
+    return 1
+
+}
+
 function display_help() {
     echo "Usage: install.sh -t <tee_type> [-h] [-m] [-s] [-b] [-u]"
     echo "Options:"
@@ -492,6 +562,7 @@ function display_help() {
     echo "  -u Uninstall the installed artifacts"
     echo " "
     echo "Some environment variables that can be set:"
+    echo "BM_NODE_LABEL: Node label to select the target worker nodes in regular OpenShift cluster"
     echo "SKIP_NFD: Skip NFD operator installation and CR creation (default: false)"
     echo "TRUSTEE_URL: Trustee URL to be used in the kernel config (default: http://kbs-service.trustee-operator-system:8080)"
     echo "CMD_TIMEOUT: Timeout for the commands (default: 900)"
@@ -568,37 +639,42 @@ function verify_params() {
         if [ -z "$PCCS_USER_TOKEN" ]; then
             PCCS_USER_TOKEN="mytoken"
         fi
-        export PCCS_USER_TOKEN_HASH=$(echo -n "$PCCS_USER_TOKEN" | sha512sum | tr -d '[:space:]-')
+        PCCS_USER_TOKEN_HASH=$(echo -n "$PCCS_USER_TOKEN" | sha512sum | tr -d '[:space:]-')
+        export PCCS_USER_TOKEN_HASH
 
         if [ -z "$PCCS_ADMIN_TOKEN" ]; then
             PCCS_ADMIN_TOKEN="mytoken"
         fi
-        export PCCS_ADMIN_TOKEN_HASH=$(echo -n "$PCCS_ADMIN_TOKEN" | sha512sum | tr -d '[:space:]-')
+        PCCS_ADMIN_TOKEN_HASH=$(echo -n "$PCCS_ADMIN_TOKEN" | sha512sum | tr -d '[:space:]-')
+        export PCCS_ADMIN_TOKEN_HASH
 
         if [ -z "$PCCS_PEM_CERT_PATH" ]; then
             check_command "openssl" || return 1
 
             PCCS_PEM_CERT_PATH="$HOME/pccs-tls"
             mkdir -p "$PCCS_PEM_CERT_PATH"
-            pushd "$PCCS_PEM_CERT_PATH"
+            pushd "$PCCS_PEM_CERT_PATH" || return 1
             openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -keyout private.pem -out certificate.pem -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=www.example.com"
-            popd
+            popd || return 1
         fi
 
-        if [ ! -f $PCCS_PEM_CERT_PATH/private.pem ]; then
+        if [ ! -f "$PCCS_PEM_CERT_PATH"/private.pem ]; then
             echo "PCCS_PEM_CERT_PATH does NOT contain a private.pem file, required for TDX deployment"
             display_help
             return 1
         fi
 
-        if [ ! -f $PCCS_PEM_CERT_PATH/certificate.pem ]; then
+        if [ ! -f "$PCCS_PEM_CERT_PATH"/certificate.pem ]; then
             echo "PCCS_PEM_CERT_PATH does NOT contain a certificate.pem file, required for TDX deployment"
             display_help
             return 1
         fi
 
-        export PCCS_PEM=$(cat $PCCS_PEM_CERT_PATH/private.pem | base64 | tr -d '\n')
-        export PCCS_CERT=$(cat $PCCS_PEM_CERT_PATH/certificate.pem | base64 | tr -d '\n')
+        PCCS_PEM=$(cat "$PCCS_PEM_CERT_PATH"/private.pem | base64 | tr -d '\n')
+        PCCS_CERT=$(cat "$PCCS_PEM_CERT_PATH"/certificate.pem | base64 | tr -d '\n')
+        export PCCS_PEM
+        export PCCS_CERT
+
     fi
 
     # If ADD_IMAGE_PULL_SECRET is true,  then check if PULL_SECRET_JSON is set
@@ -666,8 +742,8 @@ function uninstall() {
         echo "Waiting for MCP to be READY"
         # If single node OpenShift, then wait for the master MCP to be ready
         # Else wait for kata-oc MCP to be ready
-        if is_single_node_ocp; then
-            echo "SNO"
+        if is_single_node_or_converged_ocp; then
+            echo "SNO or Converged OpenShift"
             wait_for_mcp master || return 1
         else
             wait_for_mcp kata-oc || return 1
@@ -691,8 +767,8 @@ function uninstall() {
         echo "Waiting for MCP to be READY"
         # If single node OpenShift, then wait for the master MCP to be ready
         # Else wait for kata-oc MCP to be ready
-        if is_single_node_ocp; then
-            echo "SNO"
+        if is_single_node_or_converged_ocp; then
+            echo "SNO or Converged OpenShift"
             wait_for_mcp master || return 1
         else
             wait_for_mcp kata-oc || return 1
@@ -842,23 +918,17 @@ if [ "$ADD_IMAGE_PULL_SECRET" = true ]; then
 
 fi
 
-# Deploy NFD operator and create NFD CR if SKIP_NFD is false
-if [ "$SKIP_NFD" = false ]; then
-    deploy_nfd_operator || exit 1
+# If it's not a single node OpenShift or converged OpenShift, then
+# BM_NODE_LABEL is required
+if ! is_single_node_or_converged_ocp; then
+    if [ -z "$BM_NODE_LABEL" ]; then
+        echo "BM_NODE_LABEL is a required environment variable for regular OpenShift deployment"
+        display_help
+        exit 1
+    fi
 
-    # Create NFD CR
-    oc apply -f nfd/nfd-cr.yaml || exit 1
-
-    case $TEE_TYPE in
-    tdx)
-        create_intel_node_feature_rules || exit 1
-        deploy_intel_device_plugins || exit 1
-        deploy_intel_dcap || exit 1
-        ;;
-    snp)
-        create_amd_node_feature_rules || exit 1
-        ;;
-    esac
+    # Check if the node with the specified label is available
+    is_node_available_with_label "$BM_NODE_LABEL" || exit 1
 fi
 
 deploy_osc_operator || exit 1
@@ -876,13 +946,17 @@ snp)
     ;;
 esac
 
-# Create KataConfig
-create_kataconfig "$TEE_TYPE" || exit 1
+# Create KataConfig.
+# We are using explicit node label here to install the layered
+# image in target worker nodes for regular OpenShift cluster
+# For SNO or converged cluster this label is of no use as OSC operator
+# will use master nodes by default
+create_kataconfig "$BM_NODE_LABEL" || exit 1
 
 # If single node OpenShift, then wait for the master MCP to be ready
 # Else wait for kata-oc MCP to be ready
-if is_single_node_ocp; then
-    echo "SNO"
+if is_single_node_or_converged_ocp; then
+    echo "SNO or Converged OpenShift"
     wait_for_mcp master || exit 1
 else
     wait_for_mcp kata-oc || exit 1
@@ -890,6 +964,41 @@ fi
 
 # Wait for runtimeclass kata to be ready
 wait_for_runtimeclass kata || exit 1
+
+# FIXME: For TEEs we are installing NFD post creation of KataConfig
+# as we need the kernel with the required TDX and SNP support
+# and that is installed via OSC
+
+# Deploy NFD operator and create NFD CR if SKIP_NFD is false
+if [ "$SKIP_NFD" = false ]; then
+    deploy_nfd_operator || exit 1
+
+    # Create NFD CR
+    oc apply -f nfd/nfd-cr.yaml || exit 1
+
+    case $TEE_TYPE in
+    tdx)
+        create_intel_node_feature_rules || exit 1
+        ;;
+    snp)
+        create_amd_node_feature_rules || exit 1
+        ;;
+    esac
+fi
+
+# If TEE_TYPE is set then check if the required node labels are set. Otherwise bail out
+# early
+case $TEE_TYPE in
+tdx)
+    is_node_available_with_label "$TDX_NODE_LABEL" || exit 1
+    # Install required TDX prerequisites
+    deploy_intel_device_plugins || exit 1
+    deploy_intel_dcap || exit 1
+    ;;
+snp)
+    is_node_available_with_label "$SNP_NODE_LABEL" || exit 1
+    ;;
+esac
 
 # Create runtimeClass kata-tdx or kata-snp based on TEE_TYPE
 create_runtimeclasses "$TEE_TYPE" || exit 1
@@ -899,8 +1008,8 @@ set_kernel_params_for_kata_agent "$TEE_TYPE" "$TRUSTEE_URL" "$CLUSTER_HTTPS_PROX
 
 # If single node OpenShift, then wait for the master MCP to be ready
 # Else wait for kata-oc MCP to be ready
-if is_single_node_ocp; then
-    echo "SNO"
+if is_single_node_or_converged_ocp; then
+    echo "SNO or Converged OpenShift"
     wait_for_mcp master || exit 1
 else
     wait_for_mcp kata-oc || exit 1
