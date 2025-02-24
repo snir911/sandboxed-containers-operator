@@ -97,7 +97,7 @@ function install_aws_cli() {
         error_exit "Failed to download aws cli"
 
     # Install aws cli v2
-    unzip -o "/tmp/awscliv2.zip" -d "/tmp" ||
+    unzip -q -o "/tmp/awscliv2.zip" -d "/tmp" ||
         error_exit "Failed to unzip aws cli"
     /tmp/aws/install ||
         error_exit "Failed to install aws cli"
@@ -298,9 +298,6 @@ function create_ami() {
     # Install packages if INSTALL_PACKAGES is set to yes
 
     if [[ "${INSTALL_PACKAGES}" == "yes" ]]; then
-        # Add Azure yum repositories
-        add_azure_repositories
-
         # Install required rpm packages
         install_rpm_packages
 
@@ -317,7 +314,7 @@ function create_ami() {
     prepare_source_code
 
     # Prepare the pause image for embedding into the ami
-    download_and_extract_pause_image "${PAUSE_IMAGE_REPO}" "${PAUSE_IMAGE_VERSION}" "${PAUSE_IMAGE_REPO_AUTH_FILE}"
+    download_and_extract_pause_image "${PAUSE_IMAGE_REPO}" "${PAUSE_IMAGE_VERSION}" "${CLUSTER_PULL_SECRET_AUTH_FILE}"
 
     # Create AWS ami using packer
     create_ami_using_packer
