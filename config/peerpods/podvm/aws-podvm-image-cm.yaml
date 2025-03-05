@@ -38,5 +38,20 @@ data:
   #AGENT_POLICY: "" # set to base64 encoded agent policy
 
   # precreated artifacts
-  #BUCKET_NAME: existing-bucket-name
-  #PODVM_IMAGE_URI: bootc::image-registry.openshift-image-registry.svc:5000/openshift-sandboxed-containers-operator/podvm-bootc
+  BUCKET_NAME: osc-02ca65-bucket
+  PODVM_IMAGE_URI: bootc::quay.io/snir/podvm-bootc:rhel9-1.9.0-nv
+  BOOTC_BUILD_CONFIG: |
+   [[customizations.user]]
+   name = "peerpod"
+   password = "peerpod"
+   key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDQuulNwvfGJN5LH2so3d5u4iMbeq2KHWP0Of3BxSb4jhNmay4q78SftMI2x/8WQ0V5VAEM8DzCGJKmEaUGHsBwRyitN6KDjiguHa0I3yyK3Ib1EaJB0ZcQmYVOL0g5dR1ktUnLB42Rl5FMvNTi+dl0ULPkfjkODzJodiVeyZKdARYHu7cSoJMWtd3V7DoIsa3J6FUL84m2q6Zid4roIsP2kNTLC/K8HOcVJPlJdWXr8Duj0zD5LvtR1L9pdPuip9AL+U7WYhKeXNiwDdHM6odBD9T/7SWA0u671k9QrJlyopHQ7cVNXk8wF/klzSQMVOsjvtkKUEqTMs+t9sZHFIod"
+   groups = ["wheel", "root"]
+
+   [[customizations.filesystem]]
+   mountpoint = "/"
+   minsize = "5 GiB"
+
+   [[customizations.filesystem]]
+   mountpoint = "/var/kata-containers"
+   minsize = "35 GiB"
+
