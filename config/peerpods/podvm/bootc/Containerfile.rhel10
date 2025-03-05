@@ -1,0 +1,101 @@
+# build pause
+FROM registry.k8s.io/pause:3.9 as pause-bin
+
+FROM registry.redhat.io/ubi9/ubi-minimal:9.5 as pause
+RUN curl -L https://github.com/opencontainers/umoci/releases/download/v0.4.7/umoci.amd64 -o /usr/bin/umoci && chmod +x /usr/bin/umoci
+RUN umoci init --layout pause && umoci new --image pause:k8s
+RUN umoci config --image pause:k8s --config.entrypoint=/pause --author="OSC"
+RUN umoci unpack --rootless --image pause:k8s /pause
+COPY --from=pause-bin /pause /pause/rootfs/pause
+
+# Get payload
+FROM brew.registry.redhat.io/rh-osbs/openshift-sandboxed-containers-podvm-payload:osc-1.9-rhel-9-containers-candidate-96969-20250224095457 as payload
+
+# Build bootc rhel podvm
+FROM registry.redhat.io/rhel10-beta/rhel-bootc:10.0-beta-1737064208 as podvm-bootc
+
+ARG ORG_ID
+ARG ACTIVATION_KEY
+
+# register
+RUN if [[ -n "${ACTIVATION_KEY}" && -n "${ORG_ID}" ]]; then \
+    #rm -f /etc/rhsm-host && rm -f /etc/pki/entitlement-host; \
+    subscription-manager register --org=${ORG_ID} --activationkey=${ACTIVATION_KEY}; \
+    fi
+
+#  sed -i 's/\"machine_type\"/\"machine_type\",\"default_gpus\"/g' /opt/kata/configuration-remote.toml
+# oc apply -f https://raw.githubusercontent.com/openshift/sandboxed-containers-operator/refs/heads/devel/config/peerpods/mc-40-kata-remote-config.yaml
+# oc set image deployment.apps/peer-pods-webhook -n openshift-sandboxed-containers-operator peer-pods-webhook=quay.io/confidential-containers/peer-pods-webhook:v0.12.0
+# Get payload # podman pull quay.io/confidential-containers/cloud-api-adaptor:v0.11.0-amd64
+# also, add NODE_PORT TO caa daemon
+# oc set image daemonset.apps/peerpodconfig-ctrl-caa-daemon -n openshift-sandboxed-containers-operator  caa-pod=quay.io/snir/cloud-api-adaptor:cdi
+# kubectl patch daemonset.apps/peerpodconfig-ctrl-caa-daemon -n openshift-sandboxed-containers-operator --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/env", "value": [{"name": "NODE_NAME", "valueFrom": {"fieldRef": {"fieldPath": "spec.nodeName"}}}]}]'
+
+# Build bootc rhel podvm
+COPY etc /etc
+COPY usr /usr
+
+# install modules required by iptables
+RUN export KERNEL_VERSION=$(rpm -q --qf "%{VERSION}" kernel-core) && \
+    export KERNEL_RELEASE=$(rpm -q --qf "%{RELEASE}" kernel-core | sed 's/\.el.\(_.\)*$//') && \
+    dnf install -y kernel-modules-extra-${KERNEL_VERSION}-${KERNEL_RELEASE} &&  dnf clean all
+
+# afterburn is required for Azure # TODO: move to an offical option
+RUN dnf install -y afterburn && dnf clean all
+RUN ln -s ../afterburn-checkin.service /etc/systemd/system/multi-user.target.wants/afterburn-checkin.service
+#cloud-init for libvirt
+#RUN dnf install -y cloud-init && dnf clean all
+
+# Copy pause bundle
+COPY --from=pause /pause /pause_bundle
+
+
+# Extract podvm binaries
+COPY --from=payload /podvm-binaries.tar.gz /podvm-binaries.tar.gz
+RUN tar -xzvf podvm-binaries.tar.gz -C /
+RUN sed -i 's#What=/kata-containers#What=/var/kata-containers#g' /etc/systemd/system/run-kata\\x2dcontainers.mount
+# should be baked in payload
+RUN sed -i 's#/run/peerpod/agent-config.toml#/etc/agent-config.toml#g' /etc/systemd/system/kata-agent.service
+RUN ln -s /run/peerpod/policy.rego /etc/kata-opa/default-policy.rego
+
+
+
+########## Nvidia podVM target ##########
+FROM podvm-bootc as nvidia-podvm-bootc
+
+# make sure driver matches the base rhel-bootc kernel's
+# https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/precompiled/
+#ENV DRIVER_VERSION="535.216.03"
+ENV DRIVER_VERSION="570.86.15"
+ENV ARCH="x86_64"
+
+ADD --chmod=777 https://us.download.nvidia.com/tesla/${DRIVER_VERSION}/NVIDIA-Linux-${ARCH}-${DRIVER_VERSION}.run .
+
+RUN export KERNEL_VERSION=$(rpm -q --qf "%{VERSION}" kernel-core) && \
+    export KERNEL_RELEASE=$(rpm -q --qf "%{RELEASE}" kernel-core | sed 's/\.el.\(_.\)*$//') && \
+    export DRIVER_STREAM=$(echo ${DRIVER_VERSION} | cut -d '.' -f 1) && \
+    dnf install -y gcc kernel-devel-${KERNEL_VERSION}-${KERNEL_RELEASE} && \
+    #./NVIDIA-Linux-x86_64-${DRIVER_VERSION}.run -m=kernel-open --no-systemd -s --kernel-name=${KERNEL_VERSION}-${KERNEL_RELEASE}.${ARCH} && \
+    ./NVIDIA-Linux-x86_64-${DRIVER_VERSION}.run --extract-only && cp /NVIDIA-Linux-x86_64-${DRIVER_VERSION}/systemd/system/* /etc/systemd/system/ && \
+    ./NVIDIA-Linux-x86_64-${DRIVER_VERSION}.run -m=kernel-open -s --no-rebuild-initramfs --no-dkms --no-systemd --kernel-name=${KERNEL_VERSION}-${KERNEL_RELEASE}.${ARCH} && \
+    #echo echo "[root]" >> /usr/lib/ostree/prepare-root.conf && echo "transient = true" >> /usr/lib/ostree/prepare-root.conf && \
+    #cat /usr/lib/ostree/prepare-root.conf && \
+    dnf config-manager --add-repo=https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo && \
+    dnf config-manager --best --nodocs --setopt=install_weak_deps=False --save && \
+    dnf install --nogpgcheck -y nvidia-container-toolkit && \
+    dnf clean all
+
+RUN echo "blacklist nouveau" > /etc/modprobe.d/blacklist_nouveau.conf
+RUN sed -i 's/^#no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-runtime/config.toml
+RUN subscription-manager unregister
+
+ADD nvidia/nvidia-cdi.service /etc/systemd/system/nvidia-cdi.service
+ADD nvidia/generate-nvidia-cdi.sh /usr/local/bin/generate-nvidia-cdi.sh
+RUN ln -s /etc/systemd/system/nvidia-cdi.service /etc/systemd/system/multi-user.target.wants/nvidia-cdi.service
+RUN bootc container lint
+#########################################
+
+
+# a workaround to set podvm-bootc as default target
+FROM podvm-bootc as default-target
+RUN bootc container lint
