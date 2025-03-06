@@ -19,7 +19,7 @@ ARG ACTIVATION_KEY
 
 # register
 RUN if [[ -n "${ACTIVATION_KEY}" && -n "${ORG_ID}" ]]; then \
-    #rm -f /etc/rhsm-host && rm -f /etc/pki/entitlement-host; \
+    rm -f /etc/rhsm-host && rm -f /etc/pki/entitlement-host; \
     subscription-manager register --org=${ORG_ID} --activationkey=${ACTIVATION_KEY}; \
     fi
 
@@ -57,6 +57,9 @@ RUN sed -i 's#What=/kata-containers#What=/var/kata-containers#g' /etc/systemd/sy
 # should be baked in payload
 RUN sed -i 's#/run/peerpod/agent-config.toml#/etc/agent-config.toml#g' /etc/systemd/system/kata-agent.service
 RUN ln -s /run/peerpod/policy.rego /etc/kata-opa/default-policy.rego
+# get agent with this fix: https://github.com/kata-containers/kata-containers/pull/10982
+RUN rm /usr/local/bin/kata-agent
+COPY ./kata-agent /usr/local/bin/kata-agent
 
 
 
