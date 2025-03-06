@@ -11,6 +11,8 @@ COPY --from=pause-bin /pause /pause/rootfs/pause
 # Get payload
 FROM brew.registry.redhat.io/rh-osbs/openshift-sandboxed-containers-podvm-payload:osc-1.9-rhel-9-containers-candidate-96969-20250224095457 as payload
 
+FROM quay.io/bpradipt/kata-agent as agent
+
 # Build bootc rhel podvm
 FROM registry.redhat.io/rhel10-beta/rhel-bootc:10.0-beta-1737064208 as podvm-bootc
 
@@ -59,7 +61,7 @@ RUN sed -i 's#/run/peerpod/agent-config.toml#/etc/agent-config.toml#g' /etc/syst
 RUN ln -s /run/peerpod/policy.rego /etc/kata-opa/default-policy.rego
 # get agent with this fix: https://github.com/kata-containers/kata-containers/pull/10982
 RUN rm /usr/local/bin/kata-agent
-COPY ./kata-agent /usr/local/bin/kata-agent
+COPY --from=agent /kata-agent /usr/local/bin/kata-agent
 
 
 

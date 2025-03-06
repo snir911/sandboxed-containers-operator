@@ -11,6 +11,8 @@ COPY --from=pause-bin /pause /pause/rootfs/pause
 # Get payload
 FROM brew.registry.redhat.io/rh-osbs/openshift-sandboxed-containers-podvm-payload:osc-1.9-rhel-9-containers-candidate-96969-20250224095457 as payload
 
+FROM quay.io/bpradipt/kata-agent as agent
+
 # Build bootc rhel podvm
 FROM registry.redhat.io/rhel9/rhel-bootc:9.5-1738698007 as podvm-bootc
 
@@ -40,6 +42,8 @@ RUN tar -xzvf podvm-binaries.tar.gz -C /
 RUN sed -i 's#What=/kata-containers#What=/var/kata-containers#g' /etc/systemd/system/run-kata\\x2dcontainers.mount
 # until created in the payload:
 RUN ln -s /run/peerpod/policy.rego /etc/kata-opa/default-policy.rego
+RUN rm /usr/local/bin/kata-agent
+COPY --from=agent /kata-agent /usr/local/bin/kata-agent
 
 
 
@@ -72,6 +76,8 @@ RUN sed -i 's/^#no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-run
 
 ADD nvidia/nvidia-cdi.service /etc/systemd/system/nvidia-cdi.service
 ADD nvidia/generate-nvidia-cdi.sh /usr/local/bin/generate-nvidia-cdi.sh
+# remove confidential mode enabling from cdi
+RUN sed -i '/.*-srs.*/d' /usr/local/bin/generate-nvidia-cdi.sh
 RUN ln -s /etc/systemd/system/nvidia-cdi.service /etc/systemd/system/multi-user.target.wants/nvidia-cdi.service
 RUN bootc container lint
 #########################################
