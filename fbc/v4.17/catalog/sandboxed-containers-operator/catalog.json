@@ -137,10 +137,10 @@
                 "crdDescriptions": {
                     "owned": [
                         {
-                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state.",
-                            "kind": "KataConfig",
                             "name": "kataconfigs.kataconfiguration.openshift.io",
-                            "version": "v1"
+                            "version": "v1",
+                            "kind": "KataConfig",
+                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state."
                         }
                     ]
                 },
@@ -148,20 +148,20 @@
                 "displayName": "OpenShift sandboxed containers Operator",
                 "installModes": [
                     {
-                        "supported": true,
-                        "type": "OwnNamespace"
+                        "type": "OwnNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": true,
-                        "type": "SingleNamespace"
+                        "type": "SingleNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": false,
-                        "type": "MultiNamespace"
+                        "type": "MultiNamespace",
+                        "supported": false
                     },
                     {
-                        "supported": false,
-                        "type": "AllNamespaces"
+                        "type": "AllNamespaces",
+                        "supported": false
                     }
                 ],
                 "keywords": [
@@ -235,10 +235,10 @@
                 "crdDescriptions": {
                     "owned": [
                         {
-                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state.",
-                            "kind": "KataConfig",
                             "name": "kataconfigs.kataconfiguration.openshift.io",
-                            "version": "v1"
+                            "version": "v1",
+                            "kind": "KataConfig",
+                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state."
                         }
                     ]
                 },
@@ -246,20 +246,20 @@
                 "displayName": "OpenShift sandboxed containers Operator",
                 "installModes": [
                     {
-                        "supported": true,
-                        "type": "OwnNamespace"
+                        "type": "OwnNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": true,
-                        "type": "SingleNamespace"
+                        "type": "SingleNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": false,
-                        "type": "MultiNamespace"
+                        "type": "MultiNamespace",
+                        "supported": false
                     },
                     {
-                        "supported": false,
-                        "type": "AllNamespaces"
+                        "type": "AllNamespaces",
+                        "supported": false
                     }
                 ],
                 "keywords": [
@@ -336,10 +336,10 @@
                 "crdDescriptions": {
                     "owned": [
                         {
-                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state.",
-                            "kind": "KataConfig",
                             "name": "kataconfigs.kataconfiguration.openshift.io",
-                            "version": "v1"
+                            "version": "v1",
+                            "kind": "KataConfig",
+                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state."
                         }
                     ]
                 },
@@ -347,20 +347,20 @@
                 "displayName": "OpenShift sandboxed containers Operator",
                 "installModes": [
                     {
-                        "supported": true,
-                        "type": "OwnNamespace"
+                        "type": "OwnNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": true,
-                        "type": "SingleNamespace"
+                        "type": "SingleNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": false,
-                        "type": "MultiNamespace"
+                        "type": "MultiNamespace",
+                        "supported": false
                     },
                     {
-                        "supported": false,
-                        "type": "AllNamespaces"
+                        "type": "AllNamespaces",
+                        "supported": false
                     }
                 ],
                 "keywords": [
@@ -379,8 +379,8 @@
                 ],
                 "maintainers": [
                     {
-                        "email": "support@redhat.com'",
-                        "name": "'Red Hat"
+                        "name": "'Red Hat",
+                        "email": "support@redhat.com'"
                     }
                 ],
                 "maturity": "beta",
@@ -444,10 +444,10 @@
                 "crdDescriptions": {
                     "owned": [
                         {
-                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state.",
-                            "kind": "KataConfig",
                             "name": "kataconfigs.kataconfiguration.openshift.io",
-                            "version": "v1"
+                            "version": "v1",
+                            "kind": "KataConfig",
+                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state."
                         }
                     ]
                 },
@@ -455,20 +455,20 @@
                 "displayName": "OpenShift sandboxed containers Operator",
                 "installModes": [
                     {
-                        "supported": true,
-                        "type": "OwnNamespace"
+                        "type": "OwnNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": true,
-                        "type": "SingleNamespace"
+                        "type": "SingleNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": false,
-                        "type": "MultiNamespace"
+                        "type": "MultiNamespace",
+                        "supported": false
                     },
                     {
-                        "supported": false,
-                        "type": "AllNamespaces"
+                        "type": "AllNamespaces",
+                        "supported": false
                     }
                 ],
                 "keywords": [
@@ -487,8 +487,8 @@
                 ],
                 "maintainers": [
                     {
-                        "email": "support@redhat.com'",
-                        "name": "'Red Hat"
+                        "name": "'Red Hat",
+                        "email": "support@redhat.com'"
                     }
                 ],
                 "maturity": "beta",
@@ -570,20 +570,20 @@
                 "crdDescriptions": {
                     "owned": [
                         {
-                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state.",
-                            "kind": "KataConfig",
                             "name": "kataconfigs.kataconfiguration.openshift.io",
-                            "version": "v1"
+                            "version": "v1",
+                            "kind": "KataConfig",
+                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state."
                         },
                         {
-                            "kind": "PeerPodConfig",
                             "name": "peerpodconfigs.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPodConfig"
                         },
                         {
-                            "kind": "PeerPod",
                             "name": "peerpods.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPod"
                         }
                     ]
                 },
@@ -591,20 +591,20 @@
                 "displayName": "OpenShift sandboxed containers Operator",
                 "installModes": [
                     {
-                        "supported": true,
-                        "type": "OwnNamespace"
+                        "type": "OwnNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": true,
-                        "type": "SingleNamespace"
+                        "type": "SingleNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": false,
-                        "type": "MultiNamespace"
+                        "type": "MultiNamespace",
+                        "supported": false
                     },
                     {
-                        "supported": false,
-                        "type": "AllNamespaces"
+                        "type": "AllNamespaces",
+                        "supported": false
                     }
                 ],
                 "keywords": [
@@ -624,8 +624,8 @@
                 ],
                 "maintainers": [
                     {
-                        "email": "support@redhat.com'",
-                        "name": "'Red Hat"
+                        "name": "'Red Hat",
+                        "email": "support@redhat.com'"
                     }
                 ],
                 "maturity": "beta",
@@ -719,20 +719,20 @@
                 "crdDescriptions": {
                     "owned": [
                         {
-                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state.",
-                            "kind": "KataConfig",
                             "name": "kataconfigs.kataconfiguration.openshift.io",
-                            "version": "v1"
+                            "version": "v1",
+                            "kind": "KataConfig",
+                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state."
                         },
                         {
-                            "kind": "PeerPodConfig",
                             "name": "peerpodconfigs.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPodConfig"
                         },
                         {
-                            "kind": "PeerPod",
                             "name": "peerpods.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPod"
                         }
                     ]
                 },
@@ -740,20 +740,20 @@
                 "displayName": "OpenShift sandboxed containers Operator",
                 "installModes": [
                     {
-                        "supported": true,
-                        "type": "OwnNamespace"
+                        "type": "OwnNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": true,
-                        "type": "SingleNamespace"
+                        "type": "SingleNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": false,
-                        "type": "MultiNamespace"
+                        "type": "MultiNamespace",
+                        "supported": false
                     },
                     {
-                        "supported": false,
-                        "type": "AllNamespaces"
+                        "type": "AllNamespaces",
+                        "supported": false
                     }
                 ],
                 "keywords": [
@@ -773,8 +773,8 @@
                 ],
                 "maintainers": [
                     {
-                        "email": "support@redhat.com'",
-                        "name": "'Red Hat"
+                        "name": "'Red Hat",
+                        "email": "support@redhat.com'"
                     }
                 ],
                 "maturity": "beta",
@@ -868,20 +868,20 @@
                 "crdDescriptions": {
                     "owned": [
                         {
-                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state.",
-                            "kind": "KataConfig",
                             "name": "kataconfigs.kataconfiguration.openshift.io",
-                            "version": "v1"
+                            "version": "v1",
+                            "kind": "KataConfig",
+                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state."
                         },
                         {
-                            "kind": "PeerPodConfig",
                             "name": "peerpodconfigs.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPodConfig"
                         },
                         {
-                            "kind": "PeerPod",
                             "name": "peerpods.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPod"
                         }
                     ]
                 },
@@ -889,20 +889,20 @@
                 "displayName": "OpenShift sandboxed containers Operator",
                 "installModes": [
                     {
-                        "supported": true,
-                        "type": "OwnNamespace"
+                        "type": "OwnNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": true,
-                        "type": "SingleNamespace"
+                        "type": "SingleNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": false,
-                        "type": "MultiNamespace"
+                        "type": "MultiNamespace",
+                        "supported": false
                     },
                     {
-                        "supported": false,
-                        "type": "AllNamespaces"
+                        "type": "AllNamespaces",
+                        "supported": false
                     }
                 ],
                 "keywords": [
@@ -922,8 +922,8 @@
                 ],
                 "maintainers": [
                     {
-                        "email": "support@redhat.com'",
-                        "name": "'Red Hat"
+                        "name": "'Red Hat",
+                        "email": "support@redhat.com'"
                     }
                 ],
                 "maturity": "beta",
@@ -1024,20 +1024,20 @@
                 "crdDescriptions": {
                     "owned": [
                         {
-                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state.",
-                            "kind": "KataConfig",
                             "name": "kataconfigs.kataconfiguration.openshift.io",
-                            "version": "v1"
+                            "version": "v1",
+                            "kind": "KataConfig",
+                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state."
                         },
                         {
-                            "kind": "PeerPodConfig",
                             "name": "peerpodconfigs.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPodConfig"
                         },
                         {
-                            "kind": "PeerPod",
                             "name": "peerpods.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPod"
                         }
                     ]
                 },
@@ -1045,20 +1045,20 @@
                 "displayName": "OpenShift sandboxed containers Operator",
                 "installModes": [
                     {
-                        "supported": true,
-                        "type": "OwnNamespace"
+                        "type": "OwnNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": true,
-                        "type": "SingleNamespace"
+                        "type": "SingleNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": false,
-                        "type": "MultiNamespace"
+                        "type": "MultiNamespace",
+                        "supported": false
                     },
                     {
-                        "supported": false,
-                        "type": "AllNamespaces"
+                        "type": "AllNamespaces",
+                        "supported": false
                     }
                 ],
                 "keywords": [
@@ -1078,8 +1078,8 @@
                 ],
                 "maintainers": [
                     {
-                        "email": "support@redhat.com'",
-                        "name": "'Red Hat"
+                        "name": "'Red Hat",
+                        "email": "support@redhat.com'"
                     }
                 ],
                 "maturity": "beta",
@@ -1183,20 +1183,20 @@
                 "crdDescriptions": {
                     "owned": [
                         {
-                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state.",
-                            "kind": "KataConfig",
                             "name": "kataconfigs.kataconfiguration.openshift.io",
-                            "version": "v1"
+                            "version": "v1",
+                            "kind": "KataConfig",
+                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state."
                         },
                         {
-                            "kind": "PeerPodConfig",
                             "name": "peerpodconfigs.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPodConfig"
                         },
                         {
-                            "kind": "PeerPod",
                             "name": "peerpods.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPod"
                         }
                     ]
                 },
@@ -1204,20 +1204,20 @@
                 "displayName": "OpenShift sandboxed containers Operator",
                 "installModes": [
                     {
-                        "supported": true,
-                        "type": "OwnNamespace"
+                        "type": "OwnNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": true,
-                        "type": "SingleNamespace"
+                        "type": "SingleNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": false,
-                        "type": "MultiNamespace"
+                        "type": "MultiNamespace",
+                        "supported": false
                     },
                     {
-                        "supported": false,
-                        "type": "AllNamespaces"
+                        "type": "AllNamespaces",
+                        "supported": false
                     }
                 ],
                 "keywords": [
@@ -1237,8 +1237,8 @@
                 ],
                 "maintainers": [
                     {
-                        "email": "support@redhat.com'",
-                        "name": "'Red Hat"
+                        "name": "'Red Hat",
+                        "email": "support@redhat.com'"
                     }
                 ],
                 "maturity": "beta",
@@ -1346,20 +1346,20 @@
                 "crdDescriptions": {
                     "owned": [
                         {
-                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state.",
-                            "kind": "KataConfig",
                             "name": "kataconfigs.kataconfiguration.openshift.io",
-                            "version": "v1"
+                            "version": "v1",
+                            "kind": "KataConfig",
+                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state."
                         },
                         {
-                            "kind": "PeerPodConfig",
                             "name": "peerpodconfigs.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPodConfig"
                         },
                         {
-                            "kind": "PeerPod",
                             "name": "peerpods.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPod"
                         }
                     ]
                 },
@@ -1367,20 +1367,20 @@
                 "displayName": "OpenShift sandboxed containers Operator",
                 "installModes": [
                     {
-                        "supported": true,
-                        "type": "OwnNamespace"
+                        "type": "OwnNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": true,
-                        "type": "SingleNamespace"
+                        "type": "SingleNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": false,
-                        "type": "MultiNamespace"
+                        "type": "MultiNamespace",
+                        "supported": false
                     },
                     {
-                        "supported": false,
-                        "type": "AllNamespaces"
+                        "type": "AllNamespaces",
+                        "supported": false
                     }
                 ],
                 "keywords": [
@@ -1400,8 +1400,8 @@
                 ],
                 "maintainers": [
                     {
-                        "email": "support@redhat.com'",
-                        "name": "'Red Hat"
+                        "name": "'Red Hat",
+                        "email": "support@redhat.com'"
                     }
                 ],
                 "maturity": "beta",
@@ -1510,20 +1510,20 @@
                 "crdDescriptions": {
                     "owned": [
                         {
-                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state.",
-                            "kind": "KataConfig",
                             "name": "kataconfigs.kataconfiguration.openshift.io",
-                            "version": "v1"
+                            "version": "v1",
+                            "kind": "KataConfig",
+                            "description": "The kataconfig CR represent a installation of Kata in a cluster and its current state."
                         },
                         {
-                            "kind": "PeerPodConfig",
                             "name": "peerpodconfigs.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPodConfig"
                         },
                         {
-                            "kind": "PeerPod",
                             "name": "peerpods.confidentialcontainers.org",
-                            "version": "v1alpha1"
+                            "version": "v1alpha1",
+                            "kind": "PeerPod"
                         }
                     ]
                 },
@@ -1531,20 +1531,20 @@
                 "displayName": "OpenShift sandboxed containers Operator",
                 "installModes": [
                     {
-                        "supported": true,
-                        "type": "OwnNamespace"
+                        "type": "OwnNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": true,
-                        "type": "SingleNamespace"
+                        "type": "SingleNamespace",
+                        "supported": true
                     },
                     {
-                        "supported": false,
-                        "type": "MultiNamespace"
+                        "type": "MultiNamespace",
+                        "supported": false
                     },
                     {
-                        "supported": false,
-                        "type": "AllNamespaces"
+                        "type": "AllNamespaces",
+                        "supported": false
                     }
                 ],
                 "keywords": [
@@ -1564,8 +1564,8 @@
                 ],
                 "maintainers": [
                     {
-                        "email": "support@redhat.com'",
-                        "name": "'Red Hat"
+                        "name": "'Red Hat",
+                        "email": "support@redhat.com'"
                     }
                 ],
                 "maturity": "beta",
