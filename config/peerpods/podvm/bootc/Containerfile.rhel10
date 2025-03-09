@@ -92,11 +92,24 @@ RUN export KERNEL_VERSION=$(rpm -q --qf "%{VERSION}" kernel-core) && \
 
 RUN echo "blacklist nouveau" > /etc/modprobe.d/blacklist_nouveau.conf
 RUN sed -i 's/^#no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-runtime/config.toml
-RUN subscription-manager unregister
 
 ADD nvidia/nvidia-cdi.service /etc/systemd/system/nvidia-cdi.service
 ADD nvidia/generate-nvidia-cdi.sh /usr/local/bin/generate-nvidia-cdi.sh
 RUN ln -s /etc/systemd/system/nvidia-cdi.service /etc/systemd/system/multi-user.target.wants/nvidia-cdi.service
+
+# GPU local attestation
+RUN mkdir /tmp/cgpu && pushd /tmp/cgpu && \
+    curl -L https://github.com/Azure/az-cgpu-onboarding/releases/download/V3.0.10/cgpu-h100-auto-onboarding-linux.tar.gz -o cgpu-h100-auto-onboarding-linux.tar.gz && \
+    tar -xOzf cgpu-h100-auto-onboarding-linux.tar.gz cgpu-h100-auto-onboarding-linux/cgpu-onboarding-package.tar.gz | tar -xzf - cgpu-onboarding-package/step-2-attestation.sh cgpu-onboarding-package/local_gpu_verifier.tar && \
+    cd cgpu-onboarding-package && mkdir local_gpu_verifier && \
+    tar -xvf local_gpu_verifier.tar -C local_gpu_verifier && cd local_gpu_verifier && \
+    dnf install -y python3-pip && pip install -U pip && pip install -U --ignore-installed requests && pip3 install . && \
+    popd && rm -rf /tmp/cgpu && dnf clean all
+RUN mkdir -p /usr/share/oci/hooks/prestart/
+COPY nvidia/log-inject.sh /usr/local/bin/
+COPY nvidia/gpu-local-attestation.sh /usr/share/oci/hooks/prestart/
+
+RUN subscription-manager unregister
 RUN bootc container lint
 #########################################
 
