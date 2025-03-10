@@ -22,7 +22,7 @@ ARG ACTIVATION_KEY
 # register
 RUN if [[ -n "${ACTIVATION_KEY}" && -n "${ORG_ID}" ]]; then \
     rm -f /etc/rhsm-host && rm -f /etc/pki/entitlement-host; \
-    subscription-manager register --org=${ORG_ID} --activationkey=${ACTIVATION_KEY}; \
+    subscription-manager register --org=${ORG_ID} --activationkey=${ACTIVATION_KEY} && echo $(date); \
     fi
 
 #  sed -i 's/\"machine_type\"/\"machine_type\",\"default_gpus\"/g' /opt/kata/configuration-remote.toml
@@ -58,12 +58,13 @@ RUN tar -xzvf podvm-binaries.tar.gz -C /
 RUN sed -i 's#What=/kata-containers#What=/var/kata-containers#g' /etc/systemd/system/run-kata\\x2dcontainers.mount
 # should be baked in payload
 RUN sed -i 's#/run/peerpod/agent-config.toml#/etc/agent-config.toml#g' /etc/systemd/system/kata-agent.service
-RUN ln -s /run/peerpod/policy.rego /etc/kata-opa/default-policy.rego
 # get agent with this fix: https://github.com/kata-containers/kata-containers/pull/10982
 RUN rm /usr/local/bin/kata-agent
 COPY --from=agent /kata-agent /usr/local/bin/kata-agent
 
-
+RUN ln -s /run/peerpod/policy.rego /etc/kata-opa/default-policy.rego
+COPY nvidia/policy.rego /etc/kata-opa/custom.rego
+RUN sed -i 's/allow-all.rego/custom.rego/g' /etc/tmpfiles.d/policy.conf
 
 ########## Nvidia podVM target ##########
 FROM podvm-bootc as nvidia-podvm-bootc
