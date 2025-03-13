@@ -61,4 +61,4 @@ data:
   #AGENT_POLICY: "" # set to base64 encoded agent policy
 
   # precreated artifacts
-  PODVM_IMAGE_URI: oci::quay.io/snir/podvm-disk-oci:gtcpodvm-lclatt::/image/podvm.qcow2
+  PODVM_IMAGE_URI: oci::quay.io/snir/podvm-disk-oci:gtcpodvm-rmtatt::/image/podvm.qcow2

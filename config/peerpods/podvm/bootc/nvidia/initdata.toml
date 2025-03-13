@@ -76,6 +76,7 @@ policy_data := {
         "curl -s http://localhost:8006/cdh/resource/default/trustee-attestation-status/status",
         "cat /var/log/gpu-attestation-status",
         "cat /var/log/gpu-attestation-status-short",
+        "cat /var/log/gpu-remote-attestation-status",
         "nvidia-smi",
         "nvidia-persistenced",
         "nvidia-debugdump",

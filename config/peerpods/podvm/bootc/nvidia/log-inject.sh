@@ -1,7 +1,7 @@
 #!/bin/bash
 
 TARGET_BASE_DIR="/var/kata-containers"
-LOG_FILE="/var/log/gpu-attestation-status"
+LOG_FILE="/var/log/gpu-"
 
 # Loop through each directory in the base directory that matches a hex ID pattern
 for ((i=0; i<240; i++)); do

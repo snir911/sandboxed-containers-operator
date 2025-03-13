@@ -22,7 +22,7 @@ ARG ACTIVATION_KEY
 # register
 RUN if [[ -n "${ACTIVATION_KEY}" && -n "${ORG_ID}" ]]; then \
     rm -f /etc/rhsm-host && rm -f /etc/pki/entitlement-host; \
-    subscription-manager register --org=${ORG_ID} --activationkey=${ACTIVATION_KEY} && echo $(date); \
+    subscription-manager register --org=${ORG_ID} --activationkey=${ACTIVATION_KEY}; \
     fi
 
 #  sed -i 's/\"machine_type\"/\"machine_type\",\"default_gpus\"/g' /opt/kata/configuration-remote.toml
@@ -108,7 +108,10 @@ RUN mkdir /tmp/cgpu && pushd /tmp/cgpu && \
     popd && rm -rf /tmp/cgpu && dnf clean all
 RUN mkdir -p /usr/share/oci/hooks/prestart/
 COPY nvidia/log-inject.sh /usr/local/bin/
-COPY nvidia/gpu-local-attestation.sh /usr/share/oci/hooks/prestart/
+# gpu remote attestation setup
+RUN dnf install -y git python3.12 python3.12-devel && dnf clean all && mkdir -p /var/remoteatt && pushd /var/remoteatt/ && python3.12 -m venv venv && source venv/bin/activate && pip3 install nv-attestation-sdk && deactivate && git clone https://github.com/NVIDIA/nvtrust.git && popd
+
+COPY nvidia/gpu-attestation.sh /usr/share/oci/hooks/prestart/
 
 RUN subscription-manager unregister
 RUN bootc container lint
