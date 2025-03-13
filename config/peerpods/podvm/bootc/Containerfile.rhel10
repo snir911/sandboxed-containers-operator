@@ -112,6 +112,8 @@ COPY nvidia/log-inject.sh /usr/local/bin/
 RUN dnf install -y git python3.12 python3.12-devel && dnf clean all && mkdir -p /var/remoteatt && pushd /var/remoteatt/ && python3.12 -m venv venv && source venv/bin/activate && pip3 install nv-attestation-sdk && deactivate && git clone https://github.com/NVIDIA/nvtrust.git && popd
 
 COPY nvidia/gpu-attestation.sh /usr/share/oci/hooks/prestart/
+COPY nvidia/logs-hook.sh /usr/share/oci/hooks/prestart/
+COPY nvidia/gpu-rmt-attestation.sh /usr/share/oci/hooks/prestart/
 
 RUN subscription-manager unregister
 RUN bootc container lint
