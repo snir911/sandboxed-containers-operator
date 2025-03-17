@@ -32,6 +32,9 @@ function verify_vars() {
     "INSTALL_PACKAGES"
     "DISABLE_CLOUD_CONFIG"
 
+    # From peer-pods-secret:
+    "GCP_CREDENTIALS"
+
     # From lib.sh:
     "CAA_SRC_DIR"
   )
@@ -169,10 +172,10 @@ function create_image_from_prebuilt_artifact() {
     error_exit "Failed to create tarball for GCP"
 
   # Create bucket if doesn't exist
-  export GCP_BUCKET_NAME="peerpods-bucket"
+  export GCP_BUCKET_NAME="peerpods-bucket-${GCP_PROJECT_ID}"
   export GCP_REGION="${GCP_ZONE%-*}"
 
-  if ! gsutil ls -b "gs://${GCP_BUCKET_NAME}/" &>/dev/null; then
+  if ! gsutil ls -p $GCP_PROJECT_ID | grep "/${GCP_BUCKET_NAME}/" &>/dev/null; then
     gsutil mb -p ${GCP_PROJECT_ID} -l ${GCP_REGION} gs://${GCP_BUCKET_NAME}/
   fi
 
@@ -214,6 +217,20 @@ delete_image_using_id() {
   echo "GCP image deleted successfully"
 }
 
+function login_to_gcp() {
+    echo "Logging in to GCP"
+
+    creds_file="/tmp/gcp-credentials.json"
+    echo "${GCP_CREDENTIALS}" > ${creds_file}
+
+    gcloud auth activate-service-account --key-file=${creds_file} ||
+        error_exit "Failed to login to GCP"
+
+    rm -Rf ${creds_file}
+
+    echo "Logged in to GCP successfully"
+}
+
 # Display help message
 function display_help() {
   echo "This script is used to create GCP image for podvm"
@@ -253,14 +270,17 @@ if [ "$1" = "--" ]; then
   esac
 else
   while getopts "cCRh" opt; do
-    verify_vars
     case ${opt} in
     c)
       # Create the image
+      verify_vars
+      login_to_gcp
       create_image
       ;;
     C)
       # Delete the image
+      verify_vars
+      login_to_gcp
       delete_image_using_id
 
       ;;
