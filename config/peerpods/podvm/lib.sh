@@ -234,6 +234,7 @@ to edit policy.conf"
     # Fix disk mounts for CoCo
     if [[ "$CONFIDENTIAL_COMPUTE_ENABLED" == "yes" ]]; then
         create_overlay_mount_unit
+        create_layers_mount_unit
     fi
 
     # disable ssh and unsafe cloud-init modules
@@ -393,6 +394,34 @@ EOF
     # This syntax works to create the symlink to the unit file in ${podvm_dir}/files/etc/systemd/system
     ln -sf ../"${unit_name}" "${podvm_dir}/files/etc/systemd/system/multi-user.target.wants/${unit_name}" ||
         error_exit "Failed to enable the overlay mount unit"
+
+}
+
+function create_layers_mount_unit() {
+    # The actual mount point is /run/kata-containers/image/layers
+    local unit_name="run-kata\\x2dcontainers-image-layers.mount"
+    local unit_path="${podvm_dir}/files/etc/systemd/system/${unit_name}"
+
+    cat <<EOF >"${unit_path}"
+[Unit]
+Description=Mount unit for /run/kata-containers/image/layers
+Before=kata-agent.service
+
+[Mount]
+What=tmpfs
+Where=/run/kata-containers/image/layers
+Type=tmpfs
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    echo "Mount unit created at ${unit_name}"
+
+    # Enable the mount unit by creating a symlink
+    # This syntax works to create the symlink to the unit file in ${podvm_dir}/files/etc/systemd/system
+    ln -sf ../"${unit_name}" "${podvm_dir}/files/etc/systemd/system/multi-user.target.wants/${unit_name}" ||
+        error_exit "Failed to enable the layers mount unit"
 
 }
 
