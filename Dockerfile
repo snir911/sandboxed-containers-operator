@@ -13,11 +13,18 @@ COPY api api/
 COPY config config/
 COPY controllers controllers/
 
-RUN go mod download
-# needed for docker build but not for local builds
-RUN go mod vendor
+# Copy our controller-gen script to work around hermetic build issues
+# See comments in the script itself for more details.
+COPY controller-gen bin/
 
-RUN make build
+# get the version of controller-gen in an env variable for reusing
+RUN echo "export CONTROLLER_TOOLS_VERSION=$(grep controller-tools go.mod | awk '{print $2}')" > controller-tools-ver
+
+# rename the script to use the same version as defined in our go.mod file
+RUN . ./controller-tools-ver && mv bin/controller-gen bin/controller-gen-$CONTROLLER_TOOLS_VERSION
+
+# make sure 'make' uses the right version of controller-gen
+RUN . ./controller-tools-ver && make build
 
 # Use OpenShift base image
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.5-1741850109
