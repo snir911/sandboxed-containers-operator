@@ -414,6 +414,7 @@ func (r *ImageGenerator) getPeerPodsCM() (*corev1.ConfigMap, error) {
 // azure-podvm-image-cm.yaml for Azure
 // aws-podvm-image-cm.yaml for AWS
 // libvirt-podvm-image-cm.yaml for Libvirt
+// gcp-podvm-image-cm.yaml for GCP
 
 func (r *ImageGenerator) imageCreateJobRunner() (int, error) {
 	igLogger.Info("imageCreateJobRunner: Start")
