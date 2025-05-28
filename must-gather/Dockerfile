@@ -1,4 +1,4 @@
-FROM quay.io/openshift/origin-must-gather:latest as builder
+FROM registry.redhat.io/openshift4/ose-must-gather:latest as builder
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.5-1741850109
 
@@ -20,5 +20,16 @@ COPY collection-scripts/* /usr/bin/
 # Copy node-gather resources to /etc
 COPY node-gather/node-gather-crd.yaml /etc/
 COPY node-gather/node-gather-ds.yaml /etc/
+
+# Red Hat labels
+LABEL name="openshift-sandboxed-containers-operator-must-gather" \
+version="1.9.0" \
+com.redhat.component="osc-must-gather-container" \
+summary="osc-must-gather collects information about the sandboxed containers operator and the kata runtime" \
+maintainer="support@redhat.com" \
+description="osc-must-gather collects information about the sandboxed containers operator and the kata runtime" \
+io.k8s.display-name="openshift-sandboxed-containers-must-gather" \
+io.k8s.description="osc-must-gather collects information about the sandboxed containers operator and the kata runtime" \
+io.openshift.tags=""
 
 ENTRYPOINT /usr/bin/gather
