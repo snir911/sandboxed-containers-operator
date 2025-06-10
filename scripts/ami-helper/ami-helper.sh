@@ -13,23 +13,74 @@ Usage: $(basename $0) [options]
    -c               Clean credentials and exit
    -d               Delete the bucket and exit
    -h               Print this help message
+   -i               In cluster
    -r <region>      Set the region (otherwise it will be fetched from the cluster)
    -s               Skip credentials request
 EOF
 }
 
-while getopts ":b:cdhr:s" opt; do
+while getopts ":b:cdhir:s" opt; do
 	case ${opt} in
 		b ) BUCKET_NAME=$OPTARG;;
 		c ) clean_credentials=true;;
 		d ) delete_bucket=true;;
 		h ) usage && exit 0;;
+		i ) in_cluster=true;;
 		r ) REGION=$OPTARG;;
 		s ) skip_cr=true;;
 		\? ) echo "Invalid option: -$OPTARG" >&2 && usage && exit 1;;
 	esac
 done
 
+extended_credentials() {
+	echo "Creating extended credentials for IAM role management"
+	
+	ROLE_CREATION_CR_FILE="${TMPDIR}/vmimport_role_creation_cr.yaml"
+	
+	cat <<EOF > "${ROLE_CREATION_CR_FILE}"
+apiVersion: cloudcredential.openshift.io/v1
+kind: CredentialsRequest
+metadata:
+  name: aws-vmimport-role-creation
+  namespace: openshift-cloud-credential-operator
+spec:
+  providerSpec:
+    apiVersion: cloudcredential.openshift.io/v1
+    kind: AWSProviderSpec
+    statementEntries:
+    - effect: Allow
+      action:
+        - iam:CreateRole
+        - iam:PutRolePolicy
+        - iam:GetRole
+        - iam:ListRolePolicies
+        - iam:DeleteRole
+        - iam:DeleteRolePolicy
+      resource: "arn:aws:iam::*:role/vmimport"
+    - effect: Allow
+      action:
+        - s3:CreateBucket
+        - s3:DeleteBucket
+        - s3:GetBucketLocation
+        - s3:ListBucket
+      resource: "arn:aws:s3:::osc-*-bucket"
+  secretRef:
+    name: ${SECRET_NAME}
+    namespace: openshift-sandboxed-containers-operator
+EOF
+	
+	echo "Applying CredentialsRequest for role creation"
+	oc apply -f "${ROLE_CREATION_CR_FILE}"
+	
+	echo "Waiting for role creation secret to be created"
+	while ! oc get secret ${SECRET_NAME} -n openshift-sandboxed-containers-operator >/dev/null 2>&1; do 
+		echo "Waiting for secret ${SECRET_NAME} with extended credentials..."
+		sleep 5
+	done
+	
+	# Extract credentials from the secret
+	echo "AWS credentials configured for IAM role creation"
+}
 
 prepare() {
 	TMPDIR=$(mktemp -d)
@@ -185,6 +236,8 @@ init
 [[ $clean_credentials ]] && clean_credentials; [[ $delete_bucket ]] && delete_bucket; [[ $clean_credentials || $delete_bucket ]] && exit 0
 
 prepare
+
+[[ $in_cluster ]] && extended_credentials
 
 create_bucket
 
