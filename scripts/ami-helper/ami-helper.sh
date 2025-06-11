@@ -41,7 +41,7 @@ extended_credentials() {
 apiVersion: cloudcredential.openshift.io/v1
 kind: CredentialsRequest
 metadata:
-  name: aws-vmimport
+  name: openshift-sandboxed-containers-aws-image
   namespace: openshift-cloud-credential-operator
 spec:
   providerSpec:
@@ -161,7 +161,7 @@ EOF
 
 clean_credentials() {
 	echo "Clean credentials"
-	oc delete credentialsrequest aws-vmimport -n openshift-cloud-credential-operator
+	oc delete credentialsrequest openshift-sandboxed-containers-aws-image -n openshift-cloud-credential-operator
 }
 
 get_credentials() {
@@ -173,7 +173,7 @@ get_credentials() {
 apiVersion: cloudcredential.openshift.io/v1
 kind: CredentialsRequest
 metadata:
-  name: aws-vmimport
+  name: openshift-sandboxed-containers-aws-image
   namespace: openshift-cloud-credential-operator
 spec:
   providerSpec:
