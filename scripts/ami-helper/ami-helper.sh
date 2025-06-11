@@ -41,7 +41,7 @@ extended_credentials() {
 apiVersion: cloudcredential.openshift.io/v1
 kind: CredentialsRequest
 metadata:
-  name: aws-vmimport-role-creation
+  name: aws-vmimport
   namespace: openshift-cloud-credential-operator
 spec:
   providerSpec:
@@ -63,7 +63,7 @@ spec:
         - s3:DeleteBucket
         - s3:GetBucketLocation
         - s3:ListBucket
-      resource: "arn:aws:s3:::osc-*-bucket"
+      resource: "arn:aws:s3:::${BUCKET_NAME}"
   secretRef:
     name: ${SECRET_NAME}
     namespace: openshift-sandboxed-containers-operator
@@ -77,7 +77,7 @@ EOF
 		echo "Waiting for secret ${SECRET_NAME} with extended credentials..."
 		sleep 5
 	done
-	
+	oc get secret ${SECRET_NAME} -n openshift-sandboxed-containers-operator -o yaml | sed -E 's/aws_([a-z]|_)*:/\U&/g' | oc replace -f -
 	# Extract credentials from the secret
 	echo "AWS credentials configured for IAM role creation"
 }
