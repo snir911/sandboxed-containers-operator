@@ -443,88 +443,6 @@ function create_azure_image_from_scratch() {
     echo "Azure image created successfully from scratch"
 }
 
-function create_signed_image_version()
-{
-    echo "Creating Azure signed image version"
-    # UEFI_SIGNATURE_DATABASE_KEY is required to be set
-    [[ -n "${UEFI_SIGNATURE_DATABASE_KEY}" ]] && local uefi_sdb="${UEFI_SIGNATURE_DATABASE_KEY}" || error_exit "UEFI_SIGNATURE_DATABASE_KEY is empty"
-    local azure_deployment_template=/tmp/azure-deployment-template.json
-    local azure_deployment_name=${IMAGE_VERSION}-deployment
-    local storage_id=$(az storage account show --name $STORAGE_ACCOUNT_NAME --resource-group $AZURE_RESOURCE_GROUP --query "id" -o tsv)
-
-    cat <<EOF > $azure_deployment_template
-{
-    "\$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-    "contentVersion": "1.0.0.0",
-    "resources": [
-        {
-            "type": "Microsoft.Compute/galleries/images/versions",
-            "apiVersion": "2023-07-03",
-            "name": "${IMAGE_GALLERY_NAME}/${IMAGE_DEFINITION_NAME}/${IMAGE_VERSION}",
-            "location": "${AZURE_REGION}",
-            "properties": {
-                "storageProfile": {
-                    "osDiskImage": {
-                        "source": {
-                            "id": "${storage_id}",
-                            "uri": "${VHD_URL}"
-                        },
-                        "hostCaching": "ReadOnly"
-                    }
-                },
-                "securityProfile": {
-                    "uefiSettings": {
-                        "signatureTemplateNames": [
-                            "MicrosoftUefiCertificateAuthorityTemplate"
-                        ],
-                        "additionalSignatures": {
-                            "db": [
-                                {
-                                    "type": "x509",
-                                    "value": [
-                                        "${uefi_sdb}"
-                                    ]
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        }
-    ]
-}
-EOF
-    echo "Azure Signed Version Deployment: $(cat $azure_deployment_template)"
-
-    az deployment group create --name $azure_deployment_name --resource-group $AZURE_RESOURCE_GROUP --template-file $azure_deployment_template
-
-    echo "Azure signed image version created successfully"
-}
-
-function create_unsigned_image_version() {
-    echo "Creating Azure image version"
-    # Create the image version from the VHD
-    az sig image-version create \
-        --resource-group "${AZURE_RESOURCE_GROUP}" \
-        --gallery-name "${IMAGE_GALLERY_NAME}" \
-        --gallery-image-definition "${IMAGE_DEFINITION_NAME}" \
-        --gallery-image-version "${IMAGE_VERSION}" \
-        --os-vhd-uri "${VHD_URL}" \
-        --os-vhd-storage-account "${STORAGE_ACCOUNT_NAME}" \
-        --target-regions "${AZURE_REGION}" ||
-        error_exit "Failed to create the image version"
-
-    echo "Azure image version created successfully"
-}
-
-function create_image_version() {
-    if [[ "${PODVM_IMAGE_TYPE}" == "oci" ]] && [[ -n "${UEFI_SIGNATURE_DATABASE_KEY}" ]]; then
-        create_signed_image_version # Currently supported only for CoCo OCI images in Azure
-    else
-        create_unsigned_image_version
-    fi
-}
-
 # Function to create the azure image from prebuilt artifact
 # The prebuilt artifact is expected to be a vhd image
 
@@ -577,7 +495,16 @@ function create_azure_image_from_prebuilt_artifact() {
     # This will set the VHD_URL global variable
     upload_vhd_image "${VHD_IMAGE_PATH}" "${IMAGE_NAME}"
 
-    create_image_version
+    # Create the image version from the VHD
+    az sig image-version create \
+        --resource-group "${AZURE_RESOURCE_GROUP}" \
+        --gallery-name "${IMAGE_GALLERY_NAME}" \
+        --gallery-image-definition "${IMAGE_DEFINITION_NAME}" \
+        --gallery-image-version "${IMAGE_VERSION}" \
+        --os-vhd-uri "${VHD_URL}" \
+        --os-vhd-storage-account "${STORAGE_ACCOUNT_NAME}" \
+        --target-regions "${AZURE_REGION}" ||
+        error_exit "Failed to create the image version"
 
     # Clean up
     rm "${podvm_image_path}"
