@@ -270,6 +270,12 @@ function create_ami_from_prebuilt_artifact() {
         error_exit "Currently only OCI image unpacking is supported, exiting."
         ;;
     esac
+
+    echo "Deleting the bucket"
+    ./scripts/ami-helper.sh -i -d -b ${BUCKET_NAME} || error_exit "Failed to delete the bucket using the helper script"
+
+    echo "Cleaning the credentials"
+    ./scripts/ami-helper.sh -i -c || error_exit "Failed to clean the credentials using the helper script"
 }
 
 function upload_image_to_s3() {
