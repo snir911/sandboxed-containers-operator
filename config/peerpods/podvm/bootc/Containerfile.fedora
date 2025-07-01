@@ -1,0 +1,66 @@
+# Get payload from upstream (including pause bundle)
+FROM quay.io/confidential-containers/podvm-binaries-ubuntu-amd64:v0.13.0 as payload
+
+# Build bootc rhel podvm
+FROM quay.io/fedora/fedora-bootc:41 as podvm-bootc
+
+ARG CLOUD_PROVIDER=azure
+
+COPY etc /etc
+COPY usr /usr
+
+# afterburn is required for Azure
+RUN if [[ "${CLOUD_PROVIDER}" == "azure" ]]; then \
+    dnf install -y afterburn && dnf clean all && \
+    ln -s ../afterburn-checkin.service /etc/systemd/system/multi-user.target.wants/afterburn-checkin.service; \
+    fi
+
+# Cloud-init is required for Libvirt
+RUN if [[ "${CLOUD_PROVIDER}" == "libvirt" ]]; then \
+    dnf install -y cloud-init && dnf clean all; \
+fi
+
+# Copy pause bundle
+COPY --from=payload /pause_bundle /pause_bundle
+
+# Extract podvm binaries
+COPY --from=payload /podvm-binaries.tar.gz /podvm-binaries.tar.gz
+RUN tar -xzvf podvm-binaries.tar.gz -C /
+RUN sed -i 's#What=/kata-containers#What=/var/kata-containers#g' /etc/systemd/system/run-kata\\x2dcontainers.mount
+
+########## Nvidia podVM target ##########
+FROM podvm-bootc as nvidia-podvm-bootc
+
+ENV DRIVER_VERSION="570.158.01"
+ENV ARCH="x86_64"
+
+ADD --chmod=755 https://us.download.nvidia.com/tesla/${DRIVER_VERSION}/NVIDIA-Linux-${ARCH}-${DRIVER_VERSION}.run .
+
+RUN export KERNEL_VERSION=$(rpm -q --qf "%{VERSION}" kernel-core) && \
+    export KERNEL_RELEASE=$(rpm -q --qf "%{RELEASE}" kernel-core | sed 's/\.el.\(_.\)*$//') && \
+    dnf install -y gcc kernel-devel-${KERNEL_VERSION}-${KERNEL_RELEASE} && \
+    dnf install -y 'dnf5-command(config-manager)' && \
+    # the following is a workaround, see: https://github.com/NVIDIA/open-gpu-kernel-modules/issues/893
+    sed -i 's/#define ECC_MAX_DIGITS.*/#define ECC_MAX_DIGITS 9/' /lib/modules/${KERNEL_VERSION}-${KERNEL_RELEASE}.${ARCH}/build/include/crypto/internal/ecc.h && \
+    ./NVIDIA-Linux-x86_64-${DRIVER_VERSION}.run --extract-only && cp /NVIDIA-Linux-x86_64-${DRIVER_VERSION}/systemd/system/* /etc/systemd/system/ && \
+    ./NVIDIA-Linux-x86_64-${DRIVER_VERSION}.run -m=kernel-open -s --no-rebuild-initramfs --no-dkms --no-systemd --kernel-name=${KERNEL_VERSION}-${KERNEL_RELEASE}.${ARCH} && \
+    dnf config-manager addrepo --from-repofile=https://developer.download.nvidia.com/compute/cuda/repos/fedora41/x86_64/cuda-fedora41.repo && \
+    dnf config-manager --best --nodocs setopt install_weak_deps=False && \
+    dnf install --nogpgcheck -y nvidia-container-toolkit && \
+    dnf clean all && rm /var/log/*.log* /var/lib/dnf -rf || cat /var/log/nvidia-installer.log
+
+RUN echo -e "blacklist nouveau\nblacklist nova_core" > /etc/modprobe.d/blacklist_nv_alt.conf
+RUN sed -i 's/^#no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-runtime/config.toml
+
+ADD --chmod=644 nvidia/nvidia-cdi.service /etc/systemd/system/nvidia-cdi.service
+ADD --chmod=755 nvidia/generate-nvidia-cdi.sh /usr/local/bin/generate-nvidia-cdi.sh
+RUN ln -s /etc/systemd/system/nvidia-cdi.service /etc/systemd/system/multi-user.target.wants/nvidia-cdi.service
+
+# TODO: GPU attestation setup
+
+RUN bootc container lint
+#########################################
+
+# a workaround to set podvm-bootc as default target
+FROM podvm-bootc as default-target
+RUN bootc container lint
