@@ -188,7 +188,8 @@ jobs:
           cd output/qcow2
           if [ -f disk.qcow2 ]; then
             echo "Compressing disk image..."
-            xz -9 -T 0 disk.qcow2
+            ls -ld .
+            xz -9 -T 0 disk.qcow2 || sudo sh -c 'xz -9 -T 0 disk.qcow2'
             ls -lah disk.qcow2.xz
           else
             echo "Error: disk.qcow2 not found"
