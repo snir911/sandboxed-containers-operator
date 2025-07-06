@@ -163,8 +163,7 @@ jobs:
 
       - name: Create output directory
         run: |
-          mkdir -p output
-          sudo chown -R $(id -u):$(id -g) output
+          mkdir -p output/qcow2
 
       - name: Convert container to disk image
         run: |
