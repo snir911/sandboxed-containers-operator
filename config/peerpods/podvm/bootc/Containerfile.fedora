@@ -1,8 +1,8 @@
 # Get payload from upstream (including pause bundle)
-FROM quay.io/confidential-containers/podvm-binaries-ubuntu-amd64:v0.13.0 as payload
+FROM quay.io/confidential-containers/podvm-binaries-ubuntu-amd64:v0.13.0 AS payload
 
 # Build bootc rhel podvm
-FROM quay.io/fedora/fedora-bootc:41 as podvm-bootc
+FROM quay.io/fedora/fedora-bootc:41 AS podvm-bootc
 
 ARG CLOUD_PROVIDER=azure
 
@@ -29,7 +29,7 @@ RUN tar -xzvf podvm-binaries.tar.gz -C /
 RUN sed -i 's#What=/kata-containers#What=/var/kata-containers#g' /etc/systemd/system/run-kata\\x2dcontainers.mount
 
 ########## Nvidia podVM target ##########
-FROM podvm-bootc as nvidia-podvm-bootc
+FROM podvm-bootc AS nvidia-podvm-bootc
 
 ENV DRIVER_VERSION="570.158.01"
 ENV ARCH="x86_64"
@@ -62,5 +62,5 @@ RUN bootc container lint
 #########################################
 
 # a workaround to set podvm-bootc as default target
-FROM podvm-bootc as default-target
+FROM podvm-bootc AS default-target
 RUN bootc container lint
