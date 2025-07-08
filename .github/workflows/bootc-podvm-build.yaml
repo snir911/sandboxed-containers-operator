@@ -129,7 +129,7 @@ jobs:
           context: config/peerpods/podvm
           file: config/peerpods/podvm/Dockerfile.podvm-oci
           tags: ${{ steps.target.outputs.IMAGE_TAG }}-oci
-          build-args: PODVM_IMAGE_SRC=${{ github.workspace }}/config/peerpods/podvm/bootc/output/qcow2/disk.qcow2
+          build-args: PODVM_IMAGE_SRC=bootc/output/qcow2/disk.qcow2
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
