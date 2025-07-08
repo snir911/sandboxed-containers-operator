@@ -89,7 +89,7 @@ jobs:
 
       - name: load image from tar file to podman
         run: |
-          sudo podman load -i /tmp/podvm-bootc.tar
+          sudo podman load -i /tmp/podvm-bootc.tar && rm /tmp/podvm-bootc.tar
 
       - name: list images in podman
         run: sudo podman images
