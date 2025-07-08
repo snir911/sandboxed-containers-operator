@@ -83,6 +83,7 @@ jobs:
           platforms: linux/amd64
           load: true
 
+#switch to skopeo copy
       - name: save image to tar file
         run: |
           docker save ${{ steps.target.outputs.IMAGE_TAG }} -o /tmp/podvm-bootc.tar
@@ -123,7 +124,7 @@ jobs:
           context: config/peerpods/podvm
           file: config/peerpods/podvm/Dockerfile.podvm-oci
           tags: ${{ steps.target.outputs.IMAGE_TAG }}-oci
-          build-args: PODVM_IMAGE_SRC=bootc/output/qcow2/disk.qcow2
+          build-args: PODVM_IMAGE_SRC=${{ github.workspace }}/config/peerpods/podvm/bootc/output/qcow2/disk.qcow2
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
