@@ -88,7 +88,7 @@ jobs:
         uses: coscene-io/skopeo-copy-action@v1.0.0
         with:
           src-image: docker-daemon:${{ steps.target.outputs.IMAGE_TAG }}
-          dest-image: containers-storage:${{ steps.target.outputs.IMAGE_TAG }}
+          dst-image: containers-storage:${{ steps.target.outputs.IMAGE_TAG }}
 
       - name: list images in podman
         run: podman images
