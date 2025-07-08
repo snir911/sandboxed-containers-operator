@@ -84,11 +84,14 @@ jobs:
           load: true
 
 #switch to skopeo copy
-      - name: skopeo-copy-action
-        uses: truemark/skopeo-copy-action@v1
+      - name: 'Set up skopeo'
+        uses: warjiang/setup-skopeo@main
         with:
-          src-image: docker-daemon:${{ steps.target.outputs.IMAGE_TAG }}
-          dest-image: containers-storage:${{ steps.target.outputs.IMAGE_TAG }}
+          version: latest
+
+      - name: skopeo-copy-action
+        run: |
+          skopeo copy docker-daemon:${{ steps.target.outputs.IMAGE_TAG }} containers-storage:${{ steps.target.outputs.IMAGE_TAG }}
 
       - name: list images in podman
         run: podman images
