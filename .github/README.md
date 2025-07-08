@@ -27,26 +27,26 @@ You can manually trigger the workflow from the GitHub Actions tab with these opt
 
 - **Cloud Provider**: Choose between `azure`, `aws`, or `libvirt`
 - **Build Disk**: Whether to build the disk image from the container
-- **Container Variant**: Choose between `standard` or `nvidia` variant for disk conversion
+- **Target Variant**: Choose `nvidia` (default) or `standard` container target
 
 
 
 ### Workflow Jobs
 
-#### 1. build-container
-- Builds the standard bootc PodVM container image
-- Saves container as workflow artifact
-- Uses Docker layer caching for efficiency
-
-#### 2. build-nvidia-container
+#### 1. build-nvidia-container (default)
 - Builds NVIDIA GPU-enabled PodVM container image
-- Only runs for Azure cloud provider
+- Runs automatically on push/PR events
+- Runs on manual dispatch when target_variant=nvidia (default)
+- Saves container as workflow artifact
+
+#### 2. build-standard-container (on-demand)
+- Builds standard bootc PodVM container image  
+- Only runs when explicitly requested via manual dispatch with target_variant=standard
 - Saves container as workflow artifact
 
 #### 3. build-disk-image
 - Downloads container image artifacts from previous jobs (no registry required)
-- Supports both standard and nvidia container variants
-- Converts the container image to a qcow2 disk image using bootc-image-builder
+- Converts the selected container variant to a qcow2 disk image using bootc-image-builder
 - Compresses the disk image with xz
 - Uploads as workflow artifacts
 - Generates metadata including checksums
@@ -61,16 +61,19 @@ The workflow generates these artifacts:
 
 ### Usage Examples
 
-#### Building for Azure with NVIDIA support:
+#### Building NVIDIA variant (default):
 ```bash
-# Trigger manually from GitHub Actions UI
-# Select: cloud_provider=azure, container_variant=nvidia, build_disk=true
+# Automatic: Push to devel/main branches
+git push origin devel
+
+# Manual: GitHub Actions UI
+# Select: cloud_provider=azure, target_variant=nvidia, build_disk=true
 ```
 
-#### Building for AWS:
+#### Building standard variant:
 ```bash
-# Trigger manually from GitHub Actions UI  
-# Select: cloud_provider=aws, build_disk=true
+# Manual: GitHub Actions UI  
+# Select: cloud_provider=aws, target_variant=standard, build_disk=true
 ```
 
 #### Development workflow:

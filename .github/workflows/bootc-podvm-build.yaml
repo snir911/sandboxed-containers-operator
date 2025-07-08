@@ -20,20 +20,19 @@ on:
           - azure
           - aws
           - libvirt
-
       build_disk:
         description: 'Build disk image from container'
         required: false
         default: true
         type: boolean
-      container_variant:
-        description: 'Container variant to convert to disk (standard or nvidia)'
+      target_variant:
+        description: 'Container target to build'
         required: false
-        default: 'standard'
+        default: 'nvidia'
         type: choice
         options:
-          - standard
           - nvidia
+          - standard
 
 env:
   CLOUD_PROVIDER: ${{ github.event.inputs.cloud_provider || 'azure' }}
@@ -45,11 +44,29 @@ jobs:
       - name: Delete huge unnecessary tools folder
         run: rm -rf /opt/hostedtoolcache
 
-      - name: Checkout repository
+      - name: Checkout repository  
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Determine build target
+        id: target
+        run: |
+          # Default to nvidia, use standard only when explicitly requested
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.target_variant }}" == "standard" ]]; then
+            echo "BUILD_TARGET=default-target" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=podvm-bootc:${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "TAR_FILE=podvm-bootc.tar" >> $GITHUB_OUTPUT
+            echo "ARTIFACT_NAME=podvm-bootc-container-${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "VARIANT=standard" >> $GITHUB_OUTPUT
+          else
+            echo "BUILD_TARGET=nvidia-podvm-bootc" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=podvm-bootc-nvidia:${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "TAR_FILE=podvm-bootc-nvidia.tar" >> $GITHUB_OUTPUT
+            echo "ARTIFACT_NAME=podvm-bootc-nvidia-container-${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "VARIANT=nvidia" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build container image
         id: build
@@ -57,63 +74,26 @@ jobs:
         with:
           context: config/peerpods/podvm/bootc
           file: config/peerpods/podvm/bootc/Containerfile.fedora
-          target: default-target
+          target: ${{ steps.target.outputs.BUILD_TARGET }}
           build-args: |
             CLOUD_PROVIDER=${{ env.CLOUD_PROVIDER }}
-          tags: podvm-bootc:${{ github.sha }}
+          tags: ${{ steps.target.outputs.IMAGE_TAG }}-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
-          outputs: type=docker,dest=/tmp/podvm-bootc.tar
+          outputs: type=docker,dest=/tmp/${{ steps.target.outputs.TAR_FILE }}
 
       - name: Upload container image artifact
         uses: actions/upload-artifact@v4
         with:
-          name: podvm-bootc-container-${{ github.sha }}
-          path: /tmp/podvm-bootc.tar
-          retention-days: 7
-
-
-
-  build-nvidia-container:
-    runs-on: ubuntu-latest
-    if: github.event.inputs.cloud_provider == 'azure' || github.event_name != 'workflow_dispatch'
-    steps:
-      - name: Delete huge unnecessary tools folder
-        run: rm -rf /opt/hostedtoolcache
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build NVIDIA container image
-        id: build
-        uses: docker/build-push-action@v6
-        with:
-          context: config/peerpods/podvm/bootc
-          file: config/peerpods/podvm/bootc/Containerfile.fedora
-          target: nvidia-podvm-bootc
-          build-args: |
-            CLOUD_PROVIDER=${{ env.CLOUD_PROVIDER }}
-          tags: podvm-bootc-nvidia:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64
-          outputs: type=docker,dest=/tmp/podvm-bootc-nvidia.tar
-
-      - name: Upload NVIDIA container image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: podvm-bootc-nvidia-container-${{ github.sha }}
-          path: /tmp/podvm-bootc-nvidia.tar
+          name: ${{ steps.target.outputs.ARTIFACT_NAME }}
+          path: /tmp/${{ steps.target.outputs.TAR_FILE }}
           retention-days: 7
 
   build-disk-image:
     runs-on: ubuntu-latest
-    needs: [build-container, build-nvidia-container]
-    if: github.event_name != 'pull_request' && (github.event.inputs.build_disk != 'false') && (always() && !cancelled() && !failure())
+    needs: build-container
+    if: github.event.inputs.build_disk != 'false'
     steps:
       - name: Delete huge unnecessary tools folder
         run: rm -rf /opt/hostedtoolcache
@@ -124,51 +104,52 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Determine container variant
+      - name: Determine target variant
+        id: variant
         run: |
-          VARIANT="${{ github.event.inputs.container_variant || 'standard' }}"
-          echo "CONTAINER_VARIANT=$VARIANT" >> $GITHUB_ENV
-
-          if [ "$VARIANT" = "nvidia" ]; then
-            echo "ARTIFACT_NAME=podvm-bootc-nvidia-container-${{ github.sha }}" >> $GITHUB_ENV
-            echo "CONTAINER_FILE=podvm-bootc-nvidia.tar" >> $GITHUB_ENV
+          # Determine which variant was built
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.target_variant }}" == "standard" ]]; then
+            echo "VARIANT=standard" >> $GITHUB_OUTPUT
+            echo "ARTIFACT_NAME=podvm-bootc-container-${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "CONTAINER_FILE=podvm-bootc.tar" >> $GITHUB_OUTPUT
           else
-            echo "ARTIFACT_NAME=podvm-bootc-container-${{ github.sha }}" >> $GITHUB_ENV
-            echo "CONTAINER_FILE=podvm-bootc.tar" >> $GITHUB_ENV
+            echo "VARIANT=nvidia" >> $GITHUB_OUTPUT
+            echo "ARTIFACT_NAME=podvm-bootc-nvidia-container-${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "CONTAINER_FILE=podvm-bootc-nvidia.tar" >> $GITHUB_OUTPUT
           fi
 
       - name: Download container image artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_NAME }}
+          name: ${{ steps.variant.outputs.ARTIFACT_NAME }}
           path: /tmp
 
       - name: Load container image
         run: |
           # Load the container image from the artifact
-          echo "Loading container from: /tmp/${{ env.CONTAINER_FILE }}"
-          docker load -i /tmp/${{ env.CONTAINER_FILE }}
-
+          echo "Loading container from: /tmp/${{ steps.variant.outputs.CONTAINER_FILE }}"
+          docker load -i /tmp/${{ steps.variant.outputs.CONTAINER_FILE }}
+          
           # Get the loaded image name and tag
           IMAGE_NAME=$(docker images --format "table {{.Repository}}:{{.Tag}}" | grep -v REPOSITORY | head -n1)
-          echo "Loaded image: $IMAGE_NAME (variant: ${{ env.CONTAINER_VARIANT }})"
+          echo "Loaded image: $IMAGE_NAME (variant: ${{ steps.variant.outputs.VARIANT }})"
           echo "LOADED_IMAGE=$IMAGE_NAME" >> $GITHUB_ENV
-
+          
           # Transfer image from Docker to Podman storage for bootc-image-builder
           echo "Transferring image to Podman storage..."
           docker save "$IMAGE_NAME" | sudo podman load
-
+          
           # Verify image is available in Podman
           sudo podman images | grep -E "(REPOSITORY|$(echo $IMAGE_NAME | cut -d: -f1))"
 
       - name: Create output directory
         run: |
-          mkdir -p output/qcow2
+          mkdir -p output
 
       - name: Convert container to disk image
         run: |
           echo "Converting container image: $LOADED_IMAGE"
-
+          
           # Convert bootc container to qcow2 disk image using the loaded image
           sudo podman run \
             --rm \
@@ -180,7 +161,7 @@ jobs:
             quay.io/centos-bootc/bootc-image-builder:latest \
             --type qcow2 \
             --rootfs xfs \
-            --use-librepo=True \
+            --local \
             "$LOADED_IMAGE"
 
       - name: Compress disk image
@@ -188,8 +169,7 @@ jobs:
           cd output/qcow2
           if [ -f disk.qcow2 ]; then
             echo "Compressing disk image..."
-            ls -ld .
-            xz -9 -T 0 disk.qcow2 || sudo sh -c 'xz -9 -T 0 disk.qcow2'
+            xz -9 -T 0 disk.qcow2
             ls -lah disk.qcow2.xz
           else
             echo "Error: disk.qcow2 not found"
@@ -200,7 +180,7 @@ jobs:
       - name: Upload disk image artifact
         uses: actions/upload-artifact@v4
         with:
-          name: podvm-disk-${{ env.CONTAINER_VARIANT }}-${{ env.CLOUD_PROVIDER }}-${{ github.sha }}
+          name: podvm-disk-${{ steps.variant.outputs.VARIANT }}-${{ env.CLOUD_PROVIDER }}-${{ github.sha }}
           path: output/qcow2/disk.qcow2.xz
           retention-days: 30
 
@@ -213,12 +193,12 @@ jobs:
           fi
 
       - name: Create release info
-        if: github.ref == 'refs/heads/devel'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/devel'
         run: |
           cat > disk-info.json << EOF
           {
             "cloud_provider": "${{ env.CLOUD_PROVIDER }}",
-            "container_variant": "${{ env.CONTAINER_VARIANT }}",
+            "container_variant": "${{ steps.variant.outputs.VARIANT }}",
             "container_image": "${{ env.LOADED_IMAGE }}",
             "disk_size_bytes": "${{ env.DISK_SIZE }}",
             "disk_sha256": "${{ env.DISK_SHA256 }}",
@@ -229,9 +209,9 @@ jobs:
           EOF
 
       - name: Upload disk metadata
-        if: github.ref == 'refs/heads/devel'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/devel'
         uses: actions/upload-artifact@v4
         with:
-          name: podvm-disk-metadata-${{ env.CONTAINER_VARIANT }}-${{ env.CLOUD_PROVIDER }}-${{ github.sha }}
+          name: podvm-disk-metadata-${{ steps.variant.outputs.VARIANT }}-${{ env.CLOUD_PROVIDER }}-${{ github.sha }}
           path: disk-info.json
-          retention-days: 90
+          retention-days: 90 
