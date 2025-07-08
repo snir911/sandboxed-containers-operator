@@ -87,6 +87,9 @@ jobs:
         run: |
           mkdir -p output/qcow2
 
+      - name: list images
+        run: docker images
+
       - name: build-disk-image
         run: |
           echo "Building disk image..."
@@ -101,7 +104,7 @@ jobs:
             --type qcow2 \
             --rootfs xfs \
             --local \
-            ${{ steps.target.outputs.IMAGE_TAG }}
+            localhost/${{ steps.target.outputs.IMAGE_TAG }}
 
       - name: Verify disk image
         run: ls -lh output/qcow2/disk.qcow2
