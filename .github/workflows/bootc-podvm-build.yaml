@@ -96,17 +96,21 @@ jobs:
         run: sudo podman images
 
       - name: Create output directory
+        working-directory: config/peerpods/podvm/bootc
         run: |
           mkdir -p output/qcow2
 
+#TODO config.toml
+
       - name: build-disk-image
+        working-directory: config/peerpods/podvm/bootc
         run: |
           echo "Building disk image..."
           sudo podman run \
             --rm \
             --privileged \
             --security-opt label=type:unconfined_t \
-            -v $(pwd)/config/peerpods/podvm/bootc/config.toml:/config.toml:ro \
+            -v $(pwd)/config.toml:/config.toml:ro \
             -v $(pwd)/output:/output \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
             quay.io/centos-bootc/bootc-image-builder:latest \
@@ -116,7 +120,8 @@ jobs:
             ${{ steps.target.outputs.IMAGE_TAG }}
 
       - name: Verify disk image
-        run: ls -lh ${{ github.workspace }}/output/qcow2/disk.qcow2 && ls -lh $(pwd)/output/qcow2/disk.qcow2.xz
+        working-directory: config/peerpods/podvm/bootc
+        run: ls -lh ${{ github.workspace }}/config/peerpods/podvm/bootc/output/qcow2/disk.qcow2 
 
       - name: Wrap disk in oci image
         uses: docker/build-push-action@v6
