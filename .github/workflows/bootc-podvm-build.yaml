@@ -116,7 +116,7 @@ jobs:
             ${{ steps.target.outputs.IMAGE_TAG }}
 
       - name: Verify disk image
-        run: ls -lh output/qcow2/disk.qcow2
+        run: ls -lh ${{ github.workspace }}/output/qcow2/disk.qcow2 && ls -lh $(pwd)/output/qcow2/disk.qcow2.xz
 
       - name: Wrap disk in oci image
         uses: docker/build-push-action@v6
