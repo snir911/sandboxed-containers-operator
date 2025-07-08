@@ -83,17 +83,25 @@ jobs:
           platforms: linux/amd64
           load: true
 
+      - name: save image to tar file
+        run: |
+          docker save ${{ steps.target.outputs.IMAGE_TAG }} -o /tmp/podvm-bootc.tar
+
+      - name: load image from tar file to podman
+        run: |
+          sudo podman load -i /tmp/podvm-bootc.tar
+
+      - name: list images in podman
+        run: sudo podman images
+
       - name: Create output directory
         run: |
           mkdir -p output/qcow2
 
-      - name: list images
-        run: docker images
-
       - name: build-disk-image
         run: |
           echo "Building disk image..."
-          docker run \
+          sudo podman run \
             --rm \
             --privileged \
             --security-opt label=type:unconfined_t \
@@ -104,7 +112,7 @@ jobs:
             --type qcow2 \
             --rootfs xfs \
             --local \
-            localhost/${{ steps.target.outputs.IMAGE_TAG }}
+            ${{ steps.target.outputs.IMAGE_TAG }}
 
       - name: Verify disk image
         run: ls -lh output/qcow2/disk.qcow2
