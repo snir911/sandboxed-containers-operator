@@ -84,15 +84,16 @@ jobs:
           load: true
 
 #switch to skopeo copy
-      - name: save image to tar file
-        run: |
-          docker save ${{ steps.target.outputs.IMAGE_TAG }} -o /tmp/podvm-bootc.tar
-
-      - name: load image from tar file to podman
-        run: |
-          sudo podman load -i /tmp/podvm-bootc.tar && rm /tmp/podvm-bootc.tar
+      - name: skopeo-copy-action
+        uses: coscene-io/skopeo-copy-action@v1.0.0
+        with:
+          src-image: docker-daemon:${{ steps.target.outputs.IMAGE_TAG }}
+          dest-image: containers-storage:${{ steps.target.outputs.IMAGE_TAG }}
 
       - name: list images in podman
+        run: podman images
+
+      - name: list images in sudo podman
         run: sudo podman images
 
       - name: Create output directory
