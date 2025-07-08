@@ -90,7 +90,7 @@ jobs:
       - name: build-disk-image
         run: |
           echo "Building disk image..."
-          sudo podman run \
+          docker run \
             --rm \
             --privileged \
             --security-opt label=type:unconfined_t \
