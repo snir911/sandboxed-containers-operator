@@ -25,14 +25,14 @@ on:
         required: false
         default: true
         type: boolean
-      target_variant:
+      build_target:
         description: 'Container target to build'
         required: false
-        default: 'nvidia'
+        default: 'nvidia-podvm-bootc'
         type: choice
         options:
-          - nvidia
-          - standard
+          - podvm-bootc
+          - nvidia-podvm-bootc
 
 env:
   CLOUD_PROVIDER: ${{ github.event.inputs.cloud_provider || 'azure' }}
@@ -54,21 +54,15 @@ jobs:
         id: target
         run: |
           # Default to nvidia, use standard only when explicitly requested
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.target_variant }}" == "standard" ]]; then
-            echo "BUILD_TARGET=default-target" >> $GITHUB_OUTPUT
-            echo "IMAGE_TAG=podvm-bootc:${{ github.sha }}" >> $GITHUB_OUTPUT
-            echo "TAR_FILE=podvm-bootc.tar" >> $GITHUB_OUTPUT
-            echo "ARTIFACT_NAME=podvm-bootc-container-${{ github.sha }}" >> $GITHUB_OUTPUT
-            echo "VARIANT=standard" >> $GITHUB_OUTPUT
-          else
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.build_target }}" ]]; then
+            echo "BUILD_TARGET=${{ github.event.inputs.build_target }}" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=${{ github.event.inputs.build_target }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+          else # default to nvidia-podvm-bootc
             echo "BUILD_TARGET=nvidia-podvm-bootc" >> $GITHUB_OUTPUT
             echo "IMAGE_TAG=podvm-bootc-nvidia:${{ github.sha }}" >> $GITHUB_OUTPUT
-            echo "TAR_FILE=podvm-bootc-nvidia.tar" >> $GITHUB_OUTPUT
-            echo "ARTIFACT_NAME=podvm-bootc-nvidia-container-${{ github.sha }}" >> $GITHUB_OUTPUT
-            echo "VARIANT=nvidia" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build container image
+      - name: Build bootc container image
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -83,18 +77,14 @@ jobs:
           platforms: linux/amd64
           load: true
 
-#switch to skopeo copy
-      - name: 'Set up skopeo'
+      - name: Set up skopeo
         uses: warjiang/setup-skopeo@main
         with:
           version: latest
 
-      - name: skopeo-copy-action
+      - name: Skopeo copy bootc container image to podman
         run: |
-          skopeo copy docker-daemon:${{ steps.target.outputs.IMAGE_TAG }} containers-storage:${{ steps.target.outputs.IMAGE_TAG }}
-
-      - name: list images in podman
-        run: podman images
+          sudo skopeo copy docker-daemon:${{ steps.target.outputs.IMAGE_TAG }} containers-storage:${{ steps.target.outputs.IMAGE_TAG }}
 
       - name: list images in sudo podman
         run: sudo podman images
@@ -106,7 +96,7 @@ jobs:
 
 #TODO config.toml
 
-      - name: build-disk-image
+      - name: Build disk image
         working-directory: config/peerpods/podvm/bootc
         run: |
           echo "Building disk image..."
@@ -123,7 +113,7 @@ jobs:
             --local \
             ${{ steps.target.outputs.IMAGE_TAG }}
 
-      - name: Verify disk image
+      - name: Verify disk image exists
         working-directory: config/peerpods/podvm/bootc
         run: ls -lh ${{ github.workspace }}/config/peerpods/podvm/bootc/output/qcow2/disk.qcow2 
 
