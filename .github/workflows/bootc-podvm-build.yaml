@@ -60,10 +60,10 @@ jobs:
           # Default to nvidia, use standard only when explicitly requested
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.build_target }}" ]]; then
             echo "BUILD_TARGET=${{ github.event.inputs.build_target }}" >> $GITHUB_OUTPUT
-            echo "IMAGE_TAG=custom-${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=quay.io/openshift_sandboxed_containers/fedora-podvm-oci:custom-${{ github.sha }}" >> $GITHUB_OUTPUT
           else # default to nvidia-podvm-bootc
             echo "BUILD_TARGET=nvidia-podvm-bootc" >> $GITHUB_OUTPUT
-            echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=quay.io/openshift_sandboxed_containers/fedora-podvm-oci:${{ github.sha }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Build bootc container image
@@ -156,8 +156,7 @@ jobs:
         with:
           context: config/peerpods/podvm
           file: config/peerpods/podvm/Dockerfile.podvm-oci
-          tags: |
-            quay.io/openshift_sandboxed_containers/fedora-podvm-oci:${{ steps.target.outputs.IMAGE_TAG }}
+          tags: ${{ steps.target.outputs.IMAGE_TAG }}
           labels: |
             org.opencontainers.image.created=${{ env.BUILD_DATE }}
             org.opencontainers.image.authors=${{ github.actor }}
