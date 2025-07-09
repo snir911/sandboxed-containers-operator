@@ -60,7 +60,7 @@ jobs:
           # Default to nvidia, use standard only when explicitly requested
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.build_target }}" ]]; then
             echo "BUILD_TARGET=${{ github.event.inputs.build_target }}" >> $GITHUB_OUTPUT
-            echo "IMAGE_TAG=manual-${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=custom-${{ github.sha }}" >> $GITHUB_OUTPUT
           else # default to nvidia-podvm-bootc
             echo "BUILD_TARGET=nvidia-podvm-bootc" >> $GITHUB_OUTPUT
             echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_OUTPUT
@@ -80,6 +80,9 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
           load: true
+
+      - name: docker image list
+        run: docker image list
 
       - name: Set up skopeo
         uses: warjiang/setup-skopeo@main
