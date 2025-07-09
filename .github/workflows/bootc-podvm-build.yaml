@@ -33,6 +33,14 @@ on:
         options:
           - podvm-bootc
           - nvidia-podvm-bootc
+      password:
+        description: 'Password for the "peerpod" user (optional)'
+        required: false
+        type: string
+      ssh_key:
+        description: 'SSH key for the "peerpod" user (optional)'
+        required: false
+        type: string
 
 env:
   CLOUD_PROVIDER: ${{ github.event.inputs.cloud_provider || 'azure' }}
@@ -94,7 +102,26 @@ jobs:
         run: |
           mkdir -p output/qcow2
 
-#TODO config.toml
+      - name: Adapt config.toml file
+        working-directory: config/peerpods/podvm/bootc
+        run: |
+          [[ ! -f config.toml ]] && echo "default config.toml does not exist" && exit 1
+          echo "[[customizations.user]]" >> config.toml
+          echo "name = \"peerpod\"" >> config.toml
+          echo "group = [\"wheel\"]" >> config.toml
+          if [[ -n "${{ github.event.inputs.password }}" ]]; then
+            echo "Using custom password provided by user"
+            echo "password = \"${{ github.event.inputs.password }}\"" >> config.toml
+          fi
+          if [[ -n "${{ github.event.inputs.ssh_key }}" ]]; then
+            echo "Using custom SSH key provided by user"
+            echo "key = \"${{ github.event.inputs.ssh_key }}\"" >> config.toml
+          fi
+
+      - name: Show config.toml file
+        working-directory: config/peerpods/podvm/bootc
+        run: |
+          cat config.toml
 
       - name: Build disk image
         working-directory: config/peerpods/podvm/bootc
