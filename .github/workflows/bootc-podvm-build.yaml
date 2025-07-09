@@ -76,22 +76,27 @@ jobs:
           build-args: |
             CLOUD_PROVIDER=${{ env.CLOUD_PROVIDER }}
           tags: ${{ steps.target.outputs.IMAGE_TAG }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Use less aggressive caching for NVIDIA builds
+          cache-from: ${{ steps.target.outputs.BUILD_TARGET == 'nvidia-podvm-bootc' && 'type=gha,scope=nvidia' || 'type=gha' }}
+          cache-to: ${{ steps.target.outputs.BUILD_TARGET == 'nvidia-podvm-bootc' && 'type=gha,scope=nvidia,mode=min' || 'type=gha,mode=max' }}
           platforms: linux/amd64
           load: true
-
-      - name: docker image list
-        run: docker image list
 
       - name: Set up skopeo
         uses: warjiang/setup-skopeo@main
         with:
           version: latest
+      
+      - name: Clean up Docker images after bootc build
+        run: |
+          docker image prune -f
+          docker builder prune -f
 
       - name: Skopeo copy bootc container image to podman
         run: |
           sudo skopeo copy docker-daemon:${{ steps.target.outputs.IMAGE_TAG }} containers-storage:${{ steps.target.outputs.IMAGE_TAG }}
+          # Clean up docker image after copying to podman
+          docker rmi ${{ steps.target.outputs.IMAGE_TAG }} || true
 
       - name: list images in sudo podman
         run: sudo podman images
@@ -121,6 +126,12 @@ jobs:
         working-directory: config/peerpods/podvm/bootc
         run: |
           cat config.toml
+
+      - name: Clean up before disk image build
+        working-directory: config/peerpods/podvm/bootc
+        run: |
+          docker system prune -f
+          sudo podman system prune -f
 
       - name: Build disk image
         working-directory: config/peerpods/podvm/bootc
@@ -156,7 +167,9 @@ jobs:
         with:
           context: config/peerpods/podvm
           file: config/peerpods/podvm/Dockerfile.podvm-oci
-          tags: ${{ steps.target.outputs.IMAGE_TAG }}
+          tags: |
+            ${{ steps.target.outputs.IMAGE_TAG }}
+            ${{ github.event_name == 'push' && 'quay.io/openshift_sandboxed_containers/fedora-podvm-oci:latest' || '' }}
           labels: |
             org.opencontainers.image.created=${{ env.BUILD_DATE }}
             org.opencontainers.image.authors=${{ github.actor }}
