@@ -106,9 +106,9 @@ jobs:
         working-directory: config/peerpods/podvm/bootc
         run: |
           [[ ! -f config.toml ]] && echo "default config.toml does not exist" && exit 1
-          echo "[[customizations.user]]" >> config.toml
+          echo -e "\n[[customizations.user]]" >> config.toml
           echo "name = \"peerpod\"" >> config.toml
-          echo "group = [\"wheel\"]" >> config.toml
+          echo "groups = [\"wheel\"]" >> config.toml
           if [[ -n "${{ github.event.inputs.password }}" ]]; then
             echo "Using custom password provided by user"
             echo "password = \"${{ github.event.inputs.password }}\"" >> config.toml
