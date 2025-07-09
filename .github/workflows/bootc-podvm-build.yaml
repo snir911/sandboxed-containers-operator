@@ -66,6 +66,13 @@ jobs:
             echo "IMAGE_TAG=quay.io/openshift_sandboxed_containers/fedora-podvm-oci:${{ github.sha }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check initial disk space
+        run: |
+          echo "=== Initial disk space ==="
+          df -h
+          echo "Docker system usage:"
+          docker system df
+
       - name: Build bootc container image
         id: build
         uses: docker/build-push-action@v6
@@ -82,6 +89,13 @@ jobs:
           platforms: linux/amd64
           load: true
 
+      - name: Check disk space after bootc build
+        run: |
+          echo "=== Disk space after bootc build ==="
+          df -h
+          echo "Docker system usage:"
+          docker system df
+
       - name: Set up skopeo
         uses: warjiang/setup-skopeo@main
         with:
@@ -97,6 +111,13 @@ jobs:
           sudo skopeo copy docker-daemon:${{ steps.target.outputs.IMAGE_TAG }} containers-storage:${{ steps.target.outputs.IMAGE_TAG }}
           # Clean up docker image after copying to podman
           docker rmi ${{ steps.target.outputs.IMAGE_TAG }} || true
+
+      - name: Check disk space after skopeo copy
+        run: |
+          echo "=== Disk space after skopeo copy ==="
+          df -h
+          echo "Podman storage usage:"
+          sudo du -sh /var/lib/containers/storage/* 2>/dev/null || echo "Could not check podman storage"
 
       - name: list images in sudo podman
         run: sudo podman images
@@ -127,11 +148,25 @@ jobs:
         run: |
           cat config.toml
 
+      - name: Check disk space before cleanup
+        run: |
+          echo "=== Disk space before cleanup ==="
+          df -h
+          echo "Docker system usage:"
+          docker system df
+
       - name: Clean up before disk image build
         working-directory: config/peerpods/podvm/bootc
         run: |
           docker system prune -f
           sudo podman system prune -f
+
+      - name: Check disk space after cleanup
+        run: |
+          echo "=== Disk space after cleanup ==="
+          df -h
+          echo "Available for disk image build:"
+          df -h | grep -E "^/dev|^Filesystem"
 
       - name: Build disk image
         working-directory: config/peerpods/podvm/bootc
@@ -153,6 +188,15 @@ jobs:
       - name: Verify disk image exists
         working-directory: config/peerpods/podvm/bootc
         run: ls -lh ${{ github.workspace }}/config/peerpods/podvm/bootc/output/qcow2/disk.qcow2 
+
+      - name: Check disk space after disk image build
+        run: |
+          echo "=== Disk space after disk image build ==="
+          df -h
+          echo "Disk image size:"
+          ls -lh ${{ github.workspace }}/config/peerpods/podvm/bootc/output/qcow2/disk.qcow2
+          echo "Output directory size:"
+          du -sh ${{ github.workspace }}/config/peerpods/podvm/bootc/output/
 
       - name: Login to quay.io
         if: ${{ github.event.inputs.push_to_quay == 'true' || github.event_name == 'push' }}
@@ -183,3 +227,12 @@ jobs:
           platforms: linux/amd64
           push: ${{ github.event.inputs.push_to_quay == 'true' || github.event_name == 'push' }}
           load: ${{ github.event.inputs.push_to_quay == 'false' && github.event_name == 'workflow_dispatch' }}
+
+      - name: Check final disk space
+        run: |
+          echo "=== Final disk space ==="
+          df -h
+          echo "Docker system usage:"
+          docker system df
+          echo "Total workspace usage:"
+          du -sh ${{ github.workspace }}/* 2>/dev/null || echo "Could not check workspace"
