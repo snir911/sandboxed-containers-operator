@@ -16,11 +16,6 @@ on:
           - azure
           - aws
           - libvirt
-      build_disk:
-        description: 'Build disk image from container'
-        required: false
-        default: true
-        type: boolean
       build_target:
         description: 'Container target to build'
         required: false
@@ -37,6 +32,11 @@ on:
         description: 'SSH key for the "peerpod" user (optional)'
         required: false
         type: string
+      push_to_quay:
+        description: 'Push oci image to quay.io'
+        required: false
+        default: true
+        type: boolean
 
 env:
   CLOUD_PROVIDER: ${{ github.event.inputs.cloud_provider || 'azure' }}
@@ -141,6 +141,7 @@ jobs:
         run: ls -lh ${{ github.workspace }}/config/peerpods/podvm/bootc/output/qcow2/disk.qcow2 
 
       - name: Login to quay.io
+        if: ${{ github.event.inputs.push_to_quay == 'true' || github.event_name == 'push' }}
         uses: docker/login-action@v3
         with:
           registry: quay.io
@@ -165,4 +166,5 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
-          push: true
+          push: ${{ github.event.inputs.push_to_quay == 'true' || github.event_name == 'push' }}
+          load: ${{ github.event.inputs.push_to_quay == 'false' && github.event_name == 'workflow_dispatch' }}
