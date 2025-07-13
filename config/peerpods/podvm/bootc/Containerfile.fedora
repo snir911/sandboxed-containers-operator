@@ -31,23 +31,25 @@ RUN sed -i 's#What=/kata-containers#What=/var/kata-containers#g' /etc/systemd/sy
 ########## Nvidia podVM target ##########
 FROM podvm-bootc AS nvidia-podvm-bootc
 
-ENV DRIVER_VERSION="570.158.01"
+#ENV DRIVER_VERSION="570.158.01"
 ENV ARCH="x86_64"
-
-ADD --chmod=755 https://us.download.nvidia.com/tesla/${DRIVER_VERSION}/NVIDIA-Linux-${ARCH}-${DRIVER_VERSION}.run .
-
+    # the following is a workaround, see: https://github.com/NVIDIA/open-gpu-kernel-modules/issues/893, needed? 
+    # headers ?
+    # open compute only
 RUN export KERNEL_VERSION=$(rpm -q --qf "%{VERSION}" kernel-core) && \
     export KERNEL_RELEASE=$(rpm -q --qf "%{RELEASE}" kernel-core | sed 's/\.el.\(_.\)*$//') && \
-    dnf install -y gcc kernel-devel-${KERNEL_VERSION}-${KERNEL_RELEASE} && \
-    dnf install -y 'dnf5-command(config-manager)' && \
-    # the following is a workaround, see: https://github.com/NVIDIA/open-gpu-kernel-modules/issues/893
+    dnf install -y gcc kernel-devel-${KERNEL_VERSION}-${KERNEL_RELEASE} kernel-devel-matched-${KERNEL_VERSION}-${KERNEL_RELEASE} && \
     sed -i 's/#define ECC_MAX_DIGITS.*/#define ECC_MAX_DIGITS 9/' /lib/modules/${KERNEL_VERSION}-${KERNEL_RELEASE}.${ARCH}/build/include/crypto/internal/ecc.h && \
-    ./NVIDIA-Linux-x86_64-${DRIVER_VERSION}.run --extract-only && cp /NVIDIA-Linux-x86_64-${DRIVER_VERSION}/systemd/system/* /etc/systemd/system/ && \
-    ./NVIDIA-Linux-x86_64-${DRIVER_VERSION}.run -m=kernel-open -s --no-rebuild-initramfs --no-dkms --no-systemd --kernel-name=${KERNEL_VERSION}-${KERNEL_RELEASE}.${ARCH} && \
+    dnf install -y 'dnf5-command(config-manager)' && \
     dnf config-manager addrepo --from-repofile=https://developer.download.nvidia.com/compute/cuda/repos/fedora41/x86_64/cuda-fedora41.repo && \
     dnf config-manager --best --nodocs setopt install_weak_deps=False && \
-    dnf install --nogpgcheck -y nvidia-container-toolkit && \
-    dnf clean all && rm /var/log/*.log* /var/lib/dnf -rf || cat /var/log/nvidia-installer.log
+    dnf install -y nvidia-driver-cuda kmod-nvidia-open-dkms --exclude=kernel\* && \
+    export DRIVER_VERSION=${DRIVER_VERSION:-$(dkms status | grep -oP '\d+\.\d+\.\d+')} && \
+    echo "DRIVER_VERSION: ${DRIVER_VERSION}, KERNEL_VERSION-KERNEL_RELEASE: ${KERNEL_VERSION}-${KERNEL_RELEASE}" && \
+    sudo dkms build -m nvidia -v ${DRIVER_VERSION} -k ${KERNEL_VERSION}-${KERNEL_RELEASE}.${ARCH} && \
+    sudo dkms install -m nvidia -v ${DRIVER_VERSION} -k ${KERNEL_VERSION}-${KERNEL_RELEASE}.${ARCH} && \
+    dnf install -y nvidia-container-toolkit && \
+    dnf clean all && rm /var/log/*.log* /var/lib/dnf -rf
 
 RUN echo -e "blacklist nouveau\nblacklist nova_core" > /etc/modprobe.d/blacklist_nv_alt.conf
 RUN sed -i 's/^#no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-runtime/config.toml
