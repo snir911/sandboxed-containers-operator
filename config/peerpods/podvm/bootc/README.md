@@ -1,7 +1,7 @@
 # Image Mode (bootc) PodVM Builds
 
 Image Mode podVM builds enable OSC users to create PodVM images based
-on a RHEL bootc container image. The resulting artifact can be either
+on a RHEL/Fedora bootc container image. The resulting artifact can be either
 a podVM bootc container image or a podVM disk generated from that image.
 OSC includes updates to the Image Creation mechanism, supporting the
 conversion and upload of podVM images derived from pre-created bootc
@@ -15,11 +15,13 @@ for image creation.
 
 Use Podman to build a podVM bootc image locally (push it to
 a container registry of your choice if needed).
-**NOTE:** setting CLOUD_PROVIDER & RHEL Subscription credentials are required only for Azure
+**NOTE:** setting CLOUD_PROVIDER & RHEL Subscription credentials are essential only for Azure on RHEL
 ```
 IMG=quay.io/example/podvm-bootc
 AUTHFILE=/path/to/pull-secret
-podman build --authfile ${AUTHFILE} --build-arg CLOUD_PROVIDER=azure --build-arg ORG_ID=<org-id> --build-arg ACTIVATION_KEY=<key> -f Containerfile.rhel -t ${IMG}
+# OPTIONALS=" --build-arg CLOUD_PROVIDER=azure --build-arg ORG_ID=<org-id> --build-arg ACTIVATION_KEY=<key> "
+OS_VARIANT=<rhel|fedora>
+podman build --authfile ${AUTHFILE} ${OPTIONALS} -f Containerfile.${OS_VARIANT} -t ${IMG}
 #podman push ${IMG}
 ```
 
@@ -43,7 +45,7 @@ Use [Bootc Image Builder](https://github.com/osbuild/bootc-image-builder)
 to convert the created podVM bootc container image to a podVM disk file
 **config.toml:** Use it to set custom bootc build configuration: https://osbuild.org/docs/bootc/#-build-config
 ```
-# podman pull ${IMG} # optional
+# podman pull ${IMG} # if the image is not already available locally
 mkdir output
 sudo podman run \
        -it --rm \
@@ -80,7 +82,6 @@ Once you have OSC operator installed and before applying KataConfig,
 ensure your `<cloud-provider>-podvm-image-cm` values are configured
 correctly:
 ```
-IMAGE_TYPE: pre-built
 PODVM_IMAGE_URI: ${IMG_URI}
 # Custom bootc build configuration: https://osbuild.org/docs/bootc/#-build-config
 # default is used if not set
@@ -102,7 +103,7 @@ BOOTC_BUILD_CONFIG: |  # Optional, custom bootc build configuration: https://osb
 
 #### AWS specifics
 
-In order to convert image to AMI (Amazon Machine Image) in-cluster you'll need:
+In order to convert image to AMI (Amazon Machine Image) in-cluster (**only needed if peer-pods-secret is manually set**) you'll need:
 * An existing s3 bucket in the region of your cluster
 * Your cluster's AWS credntials needs to have the following [permissions](https://docs.aws.amazon.com/vm-import/latest/userguide/required-permissions.html#iam-permissions-image)
 * [vmimport service role](https://docs.aws.amazon.com/vm-import/latest/userguide/required-permissions.html#vmimport-role) set
