@@ -1,0 +1,172 @@
+name: Build Bootc PodVM Image
+
+on:
+  push:
+    branches: [ devel ]
+    paths:
+      - 'config/peerpods/podvm/bootc/**'
+  workflow_dispatch:
+    inputs:
+      cloud_provider:
+        description: 'Cloud provider (azure, aws, gcp, libvirt)'
+        required: true
+        default: 'azure'
+        type: choice
+        options:
+          - azure
+          - aws
+          - gcp
+          - libvirt
+      build_target:
+        description: 'Container target to build'
+        required: false
+        default: 'podvm-bootc'
+        type: choice
+        options:
+          - podvm-bootc
+          - nvidia-podvm-bootc
+      password:
+        description: 'Password for the "peerpod" user (optional)'
+        required: false
+        type: string
+      ssh_key:
+        description: 'SSH key for the "peerpod" user (optional)'
+        required: false
+        type: string
+      push_to_quay:
+        description: 'Push oci image to quay.io'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  CLOUD_PROVIDER: ${{ github.event.inputs.cloud_provider || 'azure' }}
+
+jobs:
+  build-container:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete huge unnecessary tools folder
+        run: rm -rf /opt/hostedtoolcache
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Determine build target
+        id: target
+        run: |
+          # Default to nvidia, use standard only when explicitly requested
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.build_target }}" ]]; then
+            echo "BUILD_TARGET=${{ github.event.inputs.build_target }}" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=quay.io/openshift_sandboxed_containers/fedora-podvm-oci:custom-${{ github.sha }}" >> $GITHUB_OUTPUT
+          else # default to podvm-bootc
+            echo "BUILD_TARGET=podvm-bootc" >> $GITHUB_OUTPUT
+            echo "IMAGE_TAG=quay.io/openshift_sandboxed_containers/fedora-podvm-oci:${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build bootc container image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: config/peerpods/podvm/bootc
+          file: config/peerpods/podvm/bootc/Containerfile.fedora
+          target: ${{ steps.target.outputs.BUILD_TARGET }}
+          build-args: |
+            CLOUD_PROVIDER=${{ env.CLOUD_PROVIDER }}
+          tags: ${{ steps.target.outputs.IMAGE_TAG }}
+          # Use less aggressive caching for NVIDIA builds
+          cache-from: ${{ steps.target.outputs.BUILD_TARGET == 'nvidia-podvm-bootc' && 'type=gha,scope=nvidia' || 'type=gha' }}
+          cache-to: ${{ steps.target.outputs.BUILD_TARGET == 'nvidia-podvm-bootc' && 'type=gha,scope=nvidia,mode=min' || 'type=gha,mode=max' }}
+          platforms: linux/amd64
+          load: true
+
+      - name: Set up skopeo
+        uses: warjiang/setup-skopeo@main
+        with:
+          version: latest
+
+      - name: Skopeo copy bootc container image to podman
+        run: |
+          sudo skopeo copy docker-daemon:${{ steps.target.outputs.IMAGE_TAG }} containers-storage:${{ steps.target.outputs.IMAGE_TAG }}
+          # Clean up docker image after copying to podman
+          docker rmi ${{ steps.target.outputs.IMAGE_TAG }} || true
+
+      - name: Create output directory
+        working-directory: config/peerpods/podvm/bootc
+        run: |
+          mkdir -p output/qcow2
+
+      - name: Adapt config.toml file
+        working-directory: config/peerpods/podvm/bootc
+        run: |
+          [[ ! -f config.toml ]] && echo "default config.toml does not exist" && exit 1
+          echo -e "\n[[customizations.user]]" >> config.toml
+          echo "name = \"peerpod\"" >> config.toml
+          echo "groups = [\"wheel\"]" >> config.toml
+          if [[ -n "${{ github.event.inputs.password }}" ]]; then
+            echo "Using custom password provided by user"
+            echo "password = \"${{ github.event.inputs.password }}\"" >> config.toml
+          fi
+          if [[ -n "${{ github.event.inputs.ssh_key }}" ]]; then
+            echo "Using custom SSH key provided by user"
+            echo "key = \"${{ github.event.inputs.ssh_key }}\"" >> config.toml
+          fi
+
+      - name: Show config.toml file
+        working-directory: config/peerpods/podvm/bootc
+        run: |
+          cat config.toml
+
+      - name: Build disk image
+        working-directory: config/peerpods/podvm/bootc
+        run: |
+          echo "Building disk image..."
+          sudo podman run \
+            --rm \
+            --privileged \
+            --security-opt label=type:unconfined_t \
+            -v $(pwd)/config.toml:/config.toml:ro \
+            -v $(pwd)/output:/output \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            quay.io/centos-bootc/bootc-image-builder:latest \
+            --type qcow2 \
+            --rootfs xfs \
+            --local \
+            ${{ steps.target.outputs.IMAGE_TAG }}
+
+      - name: Verify disk image exists
+        working-directory: config/peerpods/podvm/bootc
+        run: ls -lh ${{ github.workspace }}/config/peerpods/podvm/bootc/output/qcow2/disk.qcow2
+
+      - name: Login to quay.io
+        if: ${{ github.event.inputs.push_to_quay == 'true' || github.event_name == 'push' }}
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Wrap disk in oci image and push to quay.io
+        uses: docker/build-push-action@v6
+        with:
+          context: config/peerpods/podvm
+          file: config/peerpods/podvm/Dockerfile.podvm-oci
+          tags: |
+            ${{ steps.target.outputs.IMAGE_TAG }}
+            ${{ github.event_name == 'push' && 'quay.io/openshift_sandboxed_containers/fedora-podvm-oci:latest' || '' }}
+          labels: |
+            org.opencontainers.image.created=${{ env.BUILD_DATE }}
+            org.opencontainers.image.authors=${{ github.actor }}
+            org.opencontainers.image.source=https://github.com/openshift-sandboxed-containers
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.build-target=${{ steps.target.outputs.BUILD_TARGET }}
+            org.opencontainers.image.cloud-provider=${{ env.CLOUD_PROVIDER }}
+          build-args: PODVM_IMAGE_SRC=bootc/output/qcow2/disk.qcow2
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          push: ${{ github.event.inputs.push_to_quay == 'true' || github.event_name == 'push' }}
+          load: ${{ github.event.inputs.push_to_quay == 'false' && github.event_name == 'workflow_dispatch' }}
