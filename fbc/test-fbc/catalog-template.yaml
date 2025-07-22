@@ -13,6 +13,6 @@ entries:
     name: stable
     package: sandboxed-containers-operator
     schema: olm.channel
-  - image: quay.io/redhat-user-workloads/ose-osc-tenant/osc-operator-bundle:on-pr-da51c7bca405c2709a0bcec224336ebba14289bc
+  - image: quay.io/redhat-user-workloads/ose-osc-tenant/osc-operator-bundle:on-pr-a37de929611390354017c4a8f7e9d137b695648c
     schema: olm.bundle
 schema: olm.template.basic
