@@ -10,10 +10,19 @@ metadata:
     pipelinesascode.tekton.dev/on-cel-expression: |
       event == "push" &&
       target_branch == "devel" &&
-      files.all.exists(path, !path.matches('bundle/.*|.tekton/.*bundle.*yaml$|config/manager/.*')) &&
-      files.all.exists(path, !path.matches('must-gather/.*|.tekton/.*must-gather.*yaml$')) &&
-      files.all.exists(path, !path.matches('config/peerpods/podvm/.*|.tekton/.*podvm-builder.*yaml$')) &&
-      files.all.exists(path, !path.matches('.tekton/.*fbc-.*|fbc/.*'))
+      (
+        (
+          "config/peerpods/podvm/osc-podvm-*-job.yaml".pathChanged() ||
+          "config/peerpods/podvm/*-podvm-image-cm.yaml".pathChanged() ||
+          "config/peerpods/credentials-requests/credentials_request_*.yaml".pathChanged() ||
+          "config/peerpods/mc-*.yaml".pathChanged()
+        ) || (
+          files.all.exists(path, !path.matches('bundle/.*|.tekton/.*bundle.*yaml$|config/manager/.*')) &&
+          files.all.exists(path, !path.matches('must-gather/.*|.tekton/.*must-gather.*yaml$')) &&
+          files.all.exists(path, !path.matches('config/peerpods/podvm/.*|.tekton/.*podvm-builder.*yaml$')) &&
+          files.all.exists(path, !path.matches('.tekton/.*fbc-.*|fbc/.*'))
+        )
+      )
   creationTimestamp:
   labels:
     appstudio.openshift.io/application: openshift-sandboxed-containers
