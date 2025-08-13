@@ -2,7 +2,7 @@
 FROM registry.redhat.io/openshift-sandboxed-containers/osc-podvm-payload-rhel9:1.10.1 as payload
 
 # Build bootc rhel podvm
-FROM registry.redhat.io/rhel9/rhel-bootc:9.5-1738698007 as podvm-bootc
+FROM registry.redhat.io/rhel10/rhel-bootc:10.0-1754548231 as podvm-bootc
 
 ARG ORG_ID
 ARG ACTIVATION_KEY
@@ -19,10 +19,8 @@ COPY usr /usr
 
 # afterburn is required for Azure
 #RUN dnf config-manager --add-repo=https://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/ && dnf install -y --nogpgcheck afterburn && dnf clean all && dnf config-manager --set-disabled "*centos*"
-RUN if [[ "${CLOUD_PROVIDER}" == "azure" ]]; then \
-    dnf install -y afterburn && dnf clean all && \
-    ln -s ../afterburn-checkin.service /etc/systemd/system/multi-user.target.wants/afterburn-checkin.service; \
-    fi
+RUN dnf install -y afterburn && dnf clean all && \
+    ln -s ../afterburn-checkin.service /etc/systemd/system/multi-user.target.wants/afterburn-checkin.service
 
 # Cloud-init is required for Libvirt
 RUN if [[ "${CLOUD_PROVIDER}" == "libvirt" ]]; then \
@@ -35,6 +33,41 @@ COPY --from=payload /pause-bundle.tar.gz /pause-bundle.tar.gz
 RUN tar -xzvf podvm-binaries.tar.gz -C / && rm /podvm-binaries.tar.gz && \
     tar -xzvf pause-bundle.tar.gz -C / && rm /pause-bundle.tar.gz && \
     sed -i 's#What=/kata-containers#What=/var/kata-containers#g' /etc/systemd/system/run-kata\\x2dcontainers.mount
+
+########## Nvidia podVM target ##########
+FROM podvm-bootc AS nvidia-podvm-bootc
+
+ENV DRIVER_VERSION="580.65.06"
+
+RUN export KERNEL_VERSION=$(rpm -q --qf "%{VERSION}" kernel-core) && \
+    export KERNEL_RELEASE=$(rpm -q --qf "%{RELEASE}" kernel-core | sed 's/\.el.\(_.\)*$//') && \
+    export ARCH=$(uname -m) && \
+    dnf install -y gcc kernel-devel-${KERNEL_VERSION}-${KERNEL_RELEASE} kernel-devel-matched-${KERNEL_VERSION}-${KERNEL_RELEASE} && \
+    dnf install -y 'dnf-command(config-manager)' && \
+    subscription-manager repos --enable codeready-builder-for-rhel-10-$(arch)-rpms && \
+    dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm -y && \
+    dnf config-manager --add-repo=https://developer.download.nvidia.com/compute/cuda/repos/rhel10/x86_64/cuda-rhel10.repo && \
+    dnf config-manager --best --nodocs --setopt install_weak_deps=False --save && \
+    dnf install -y nvidia-driver-cuda-${DRIVER_VERSION} kmod-nvidia-open-dkms-${DRIVER_VERSION} --exclude=kernel\* && \
+    export DRIVER_VERSION=${DRIVER_VERSION:-$(dkms status | grep -oP '\d+\.\d+\.\d+')} && \
+    echo "DRIVER_VERSION: ${DRIVER_VERSION}, KERNEL_VERSION-KERNEL_RELEASE: ${KERNEL_VERSION}-${KERNEL_RELEASE}" && \
+    sudo dkms build -m nvidia -v ${DRIVER_VERSION} -k ${KERNEL_VERSION}-${KERNEL_RELEASE}.${ARCH} && \
+    sudo dkms install -m nvidia -v ${DRIVER_VERSION} -k ${KERNEL_VERSION}-${KERNEL_RELEASE}.${ARCH} && \
+    dnf config-manager --add-repo=https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo && \
+    dnf install --nogpgcheck --repo cuda-rhel9-$(arch) -y nvidia-container-toolkit && \
+    dnf clean all && rm /var/log/*.log* /var/lib/dnf -rf
+
+RUN echo -e "blacklist nouveau\nblacklist nova_core" > /etc/modprobe.d/blacklist_nv_alt.conf
+RUN sed -i 's/^#no-cgroups = false/no-cgroups = true/' /etc/nvidia-container-runtime/config.toml
+
+ADD --chmod=644 nvidia/nvidia-cdi.service /etc/systemd/system/nvidia-cdi.service
+ADD --chmod=755 nvidia/generate-nvidia-cdi.sh /usr/local/bin/generate-nvidia-cdi.sh
+RUN ln -s /etc/systemd/system/nvidia-cdi.service /etc/systemd/system/multi-user.target.wants/nvidia-cdi.service
+
+# TODO: GPU attestation setup
+
+RUN bootc container lint
+#########################################
 
 # a workaround to set podvm-bootc as default target
 FROM podvm-bootc as default-target
